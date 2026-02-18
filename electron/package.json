@@ -1,0 +1,55 @@
+{
+  "name": "process-management-system-desktop",
+  "version": "1.0.0",
+  "description": "Process Management System - Offline Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "prebuild": "cd ../frontend && npm install && npm run build && cd ../backend && npm install",
+    "dist": "npm run prebuild && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.pms.app",
+    "productName": "Process Management System",
+    "files": [
+      "**/*",
+      "../backend/**/*",
+      "../frontend/build/**/*",
+      "!../backend/scripts/**/*",
+      "!../_docs/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/node_modules",
+        "to": "app/backend/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "verifyUpdateCodeSignature": false,
+      "forceCodeSigning": false,
+      "icon": "../build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "keywords": [],
+  "author": "Your Name",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1"
+  }
+}
