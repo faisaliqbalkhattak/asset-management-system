@@ -1,10 +1,127 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { useToast } from '../components/Toast';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+
+// ============================================================
+// REUSABLE RECENT ENTRIES SECTION
+// Shows configurable number of recent entries with expandable rows
+// ============================================================
+const RecentEntriesSection = ({
+  data,
+  primaryColumns,  // [{key, label, cellClassName?}]
+  allColumns,       // [{key, label}] - all columns from DB
+  editingId,
+  onEdit,
+  formatters = {},  // optional per-column value formatters
+}) => {
+  const [recentCount, setRecentCount] = useState(5);
+  const [expandedRows, setExpandedRows] = useState({});
+
+  const displayedData = useMemo(() => {
+    if (recentCount === 0) return [...data].reverse();
+    return data.slice(-recentCount).reverse();
+  }, [data, recentCount]);
+
+  const toggleExpand = (id) => {
+    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const formatValue = (col, val) => {
+    if (formatters[col]) return formatters[col](val);
+    if (val === null || val === undefined || val === '') return '-';
+    if (typeof val === 'number') return val.toLocaleString();
+    return String(val);
+  };
+
+  // Extra columns = allColumns that are not in primaryColumns
+  const primaryKeys = primaryColumns.map(c => c.key);
+  const extraColumns = allColumns.filter(c => !primaryKeys.includes(c.key));
+
+  if (data.length === 0) return null;
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-md font-medium text-gray-900">Recent Entries</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Show:</span>
+          <select
+            value={recentCount}
+            onChange={e => setRecentCount(parseInt(e.target.value))}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={0}>All ({data.length})</option>
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {primaryColumns.map(col => (
+                <th key={col.key} className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase ${col.headerClassName || ''}`}>
+                  {col.label}
+                </th>
+              ))}
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {displayedData.map(item => (
+              <React.Fragment key={item.id}>
+                <tr className={`hover:bg-gray-50 ${editingId === item.id ? 'bg-yellow-50' : ''}`}>
+                  {primaryColumns.map(col => (
+                    <td key={col.key} className={`px-4 py-3 text-sm ${col.cellClassName || ''}`}>
+                      {formatValue(col.key, item[col.key])}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleExpand(item.id)}
+                        className="text-gray-500 hover:text-gray-700"
+                        title={expandedRows[item.id] ? 'Collapse' : 'Expand'}
+                      >
+                        {expandedRows[item.id] ? '▲' : '▼'}
+                      </button>
+                      <button onClick={() => onEdit(item)} className="text-blue-600 hover:text-blue-800">Edit</button>
+                    </div>
+                  </td>
+                </tr>
+                {expandedRows[item.id] && extraColumns.length > 0 && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={primaryColumns.length + 1} className="px-4 py-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {extraColumns.map(col => (
+                          <div key={col.key}>
+                            <span className="text-xs text-gray-500 uppercase">{col.label}</span>
+                            <div className="text-sm font-medium">{formatValue(col.key, item[col.key])}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-2 text-xs text-gray-400 text-right">
+        Showing {displayedData.length} of {data.length} entries
+      </div>
+    </div>
+  );
+};
 
 const DailyEntries = () => {
   return (
@@ -69,10 +186,12 @@ const DailyEntries = () => {
 // ============================================================
 const GeneratorForm = () => {
   const { equipment, generatorOperations, addGeneratorOperation, updateGeneratorOperation } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   // Filter equipment by type (backend stores uppercase types and is_active as 1/0)
   const generators = useMemo(() => 
@@ -84,6 +203,7 @@ const GeneratorForm = () => {
     equipment_name: '',
     operation_date: new Date().toISOString().split('T')[0],
     timing_hours: '',
+    fuel_consumption_rate: '',
     fuel_consumed: '',
     fuel_rate: '',
     rent_per_day: '19354.84', // Default: 600000/31 days
@@ -97,7 +217,13 @@ const GeneratorForm = () => {
     }
   }, [generators, formData.equipment_name]);
 
-  const fuelAmount = (parseFloat(formData.fuel_consumed) || 0) * (parseFloat(formData.fuel_rate) || 0);
+  const fuelConsumptionRate = parseFloat(formData.fuel_consumption_rate) || 0;
+  const timingHours = parseFloat(formData.timing_hours) || 0;
+  // If fuel_consumption_rate is set, auto-calculate fuel_consumed
+  const effectiveFuelConsumed = fuelConsumptionRate > 0 && timingHours > 0
+    ? fuelConsumptionRate * timingHours
+    : (parseFloat(formData.fuel_consumed) || 0);
+  const fuelAmount = effectiveFuelConsumed * (parseFloat(formData.fuel_rate) || 0);
   const rentPerDay = parseFloat(formData.rent_per_day) || 0;
   const total = fuelAmount + rentPerDay;
 
@@ -113,6 +239,7 @@ const GeneratorForm = () => {
       equipment_name: op.equipment_name || generators[0]?.equipment_name || '',
       operation_date: op.operation_date,
       timing_hours: op.timing_hours?.toString() || '',
+      fuel_consumption_rate: op.fuel_consumption_rate?.toString() || '',
       fuel_consumed: op.fuel_consumed?.toString() || '',
       fuel_rate: op.fuel_rate?.toString() || '',
       rent_per_day: op.rent_per_day?.toString() || '19354.84',
@@ -128,6 +255,7 @@ const GeneratorForm = () => {
       equipment_name: generators[0]?.equipment_name || '',
       operation_date: new Date().toISOString().split('T')[0],
       timing_hours: '',
+      fuel_consumption_rate: formData.fuel_consumption_rate,
       fuel_consumed: '',
       fuel_rate: formData.fuel_rate,
       rent_per_day: formData.rent_per_day,
@@ -150,7 +278,8 @@ const GeneratorForm = () => {
         equipment_name: formData.equipment_name,
         operation_date: formData.operation_date,
         timing_hours: parseFloat(formData.timing_hours) || 0,
-        fuel_consumed: parseFloat(formData.fuel_consumed) || 0,
+        fuel_consumption_rate: fuelConsumptionRate,
+        fuel_consumed: effectiveFuelConsumed,
         fuel_rate: parseFloat(formData.fuel_rate) || 0,
         fuel_amount: fuelAmount,
         rent_per_day: rentPerDay,
@@ -161,16 +290,21 @@ const GeneratorForm = () => {
       if (editingId) {
         await updateGeneratorOperation(editingId, payload);
         setSuccess('Generator entry updated!');
+        showToast('Generator entry updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addGeneratorOperation(payload);
         setSuccess('Generator entry saved!');
+        showToast('Generator entry saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({
         equipment_name: formData.equipment_name,
         operation_date: new Date().toISOString().split('T')[0],
         timing_hours: '',
+        fuel_consumption_rate: formData.fuel_consumption_rate,
         fuel_consumed: '',
         fuel_rate: formData.fuel_rate,
         rent_per_day: formData.rent_per_day,
@@ -227,8 +361,22 @@ const GeneratorForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="fuel_consumed">Fuel Consumed (L)</Label>
-            <Input type="number" id="fuel_consumed" name="fuel_consumed" value={formData.fuel_consumed} onChange={handleChange} placeholder="0" step="0.01" />
+            <Label htmlFor="fuel_consumption_rate">Fuel Rate/Hr (L/hr)</Label>
+            <Input type="number" id="fuel_consumption_rate" name="fuel_consumption_rate" value={formData.fuel_consumption_rate} onChange={handleChange} placeholder="e.g. 12" step="0.01" />
+            {fuelConsumptionRate > 0 && timingHours > 0 && (
+              <span className="text-xs text-blue-600">{fuelConsumptionRate} L/hr × {timingHours} hrs = {effectiveFuelConsumed.toFixed(2)} L</span>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="fuel_consumed">Fuel Consumed (L){fuelConsumptionRate > 0 ? ' (auto)' : ''}</Label>
+            <Input
+              type="number" id="fuel_consumed" name="fuel_consumed"
+              value={fuelConsumptionRate > 0 && timingHours > 0 ? effectiveFuelConsumed.toFixed(2) : formData.fuel_consumed}
+              onChange={handleChange} placeholder="0" step="0.01"
+              disabled={fuelConsumptionRate > 0 && timingHours > 0}
+              className={fuelConsumptionRate > 0 && timingHours > 0 ? 'bg-gray-100' : ''}
+            />
           </div>
 
           <div>
@@ -252,7 +400,7 @@ const GeneratorForm = () => {
           <div>
             <Label className="text-gray-600">Fuel Amount</Label>
             <div className="text-lg font-bold">{fuelAmount.toLocaleString()}</div>
-            <span className="text-xs text-gray-500">{formData.fuel_consumed || 0}L × Rs.{formData.fuel_rate || 0}/L</span>
+            <span className="text-xs text-gray-500">{effectiveFuelConsumed.toFixed(2)}L × Rs.{formData.fuel_rate || 0}/L</span>
           </div>
           <div>
             <Label className="text-gray-600">Rent/Day</Label>
@@ -267,48 +415,40 @@ const GeneratorForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting || generators.length === 0}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting || generators.length === 0}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
       {/* Recent Entries */}
-      {generatorOperations.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Equipment</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rent/Day</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {generatorOperations.slice(-5).reverse().map((op) => (
-                  <tr key={op.id} className={`hover:bg-gray-50 ${editingId === op.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{op.operation_date}</td>
-                    <td className="px-4 py-3 text-sm">{op.equipment_name || 'Generator'}</td>
-                    <td className="px-4 py-3 text-sm">{op.timing_hours}</td>
-                    <td className="px-4 py-3 text-sm">{op.fuel_consumed}L</td>
-                    <td className="px-4 py-3 text-sm">{op.rent_per_day?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{op.total_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(op)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <RecentEntriesSection
+        data={generatorOperations}
+        primaryColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'equipment_name', label: 'Equipment' },
+          { key: 'timing_hours', label: 'Hours' },
+          { key: 'fuel_consumed', label: 'Fuel (L)' },
+          { key: 'rent_per_day', label: 'Rent/Day' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'equipment_name', label: 'Equipment' },
+          { key: 'timing_hours', label: 'Hours' },
+          { key: 'fuel_consumption_rate', label: 'Fuel Rate/Hr' },
+          { key: 'fuel_consumed', label: 'Fuel (L)' },
+          { key: 'fuel_rate', label: 'Fuel Rate' },
+          { key: 'fuel_amount', label: 'Fuel Amount' },
+          { key: 'rent_per_day', label: 'Rent/Day' },
+          { key: 'total_amount', label: 'Total' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -318,10 +458,12 @@ const GeneratorForm = () => {
 // ============================================================
 const ExcavatorForm = () => {
   const { equipment, excavatorOperations, addExcavatorOperation, updateExcavatorOperation } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   const excavators = useMemo(() => 
     equipment.filter(e => e.equipment_type === 'EXCAVATOR' && (e.is_active === 1 || e.is_active === true)),
@@ -337,6 +479,8 @@ const ExcavatorForm = () => {
     fuel_rate: '',
     misc_expense: '',
     misc_description: '',
+    misc_expense_2: '',
+    misc_description_2: '',
     remarks: '',
   });
 
@@ -349,7 +493,9 @@ const ExcavatorForm = () => {
   const rentAmount = (parseFloat(formData.hours_operated) || 0) * (parseFloat(formData.rate_per_hour) || 0);
   const fuelAmount = (parseFloat(formData.fuel_consumed) || 0) * (parseFloat(formData.fuel_rate) || 0);
   const miscAmount = parseFloat(formData.misc_expense) || 0;
-  const total = rentAmount + fuelAmount + miscAmount;
+  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
+  const totalMisc = miscAmount + miscAmount2;
+  const total = rentAmount + fuelAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -368,6 +514,8 @@ const ExcavatorForm = () => {
       fuel_rate: op.fuel_rate?.toString() || '',
       misc_expense: op.misc_expense?.toString() || '',
       misc_description: op.misc_description || '',
+      misc_expense_2: op.misc_expense_2?.toString() || '',
+      misc_description_2: op.misc_description_2 || '',
       remarks: op.remarks || '',
     });
     setError('');
@@ -385,6 +533,8 @@ const ExcavatorForm = () => {
       fuel_rate: formData.fuel_rate,
       misc_expense: '',
       misc_description: '',
+      misc_expense_2: '',
+      misc_description_2: '',
       remarks: '',
     });
   };
@@ -411,6 +561,8 @@ const ExcavatorForm = () => {
         fuel_amount: fuelAmount,
         misc_expense: miscAmount,
         misc_description: formData.misc_description || null,
+        misc_expense_2: miscAmount2,
+        misc_description_2: formData.misc_description_2 || null,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -418,10 +570,14 @@ const ExcavatorForm = () => {
       if (editingId) {
         await updateExcavatorOperation(editingId, payload);
         setSuccess('Excavator entry updated!');
+        showToast('Excavator entry updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addExcavatorOperation(payload);
         setSuccess('Excavator entry saved!');
+        showToast('Excavator entry saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({
@@ -433,6 +589,8 @@ const ExcavatorForm = () => {
         fuel_rate: formData.fuel_rate,
         misc_expense: '',
         misc_description: '',
+        misc_expense_2: '',
+        misc_description_2: '',
         remarks: '',
       });
     } catch (err) {
@@ -445,7 +603,7 @@ const ExcavatorForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Excavator Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Rent = Hours × Rate/Hr | Fuel = Fuel Consumed × Rate | Total = Rent + Fuel + Misc</p>
+      <p className="text-sm text-gray-600 mb-4">Rent = Hours × Rate/Hr | Fuel = Fuel Consumed × Rate | Total = Rent + Fuel (Misc tracked separately)</p>
 
       {excavators.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -491,13 +649,23 @@ const ExcavatorForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="misc_expense">Misc Expense (PKR)</Label>
+            <Label htmlFor="misc_expense">Misc Expense 1 (PKR)</Label>
             <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
 
           <div>
-            <Label htmlFor="misc_description">Misc Description</Label>
+            <Label htmlFor="misc_description">Misc 1 Description</Label>
             <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="What is misc for?" />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_expense_2">Misc Expense 2 (PKR)</Label>
+            <Input type="number" id="misc_expense_2" name="misc_expense_2" value={formData.misc_expense_2} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_description_2">Misc 2 Description</Label>
+            <Input type="text" id="misc_description_2" name="misc_description_2" value={formData.misc_description_2} onChange={handleChange} placeholder="What is misc 2 for?" />
           </div>
         </div>
 
@@ -519,59 +687,57 @@ const ExcavatorForm = () => {
             <span className="text-xs text-gray-500">{formData.fuel_consumed || 0}L × Rs.{formData.fuel_rate || 0}/L</span>
           </div>
           <div>
-            <Label className="text-orange-600">Misc</Label>
-            <div className="text-lg font-bold text-orange-700">{miscAmount.toLocaleString()}</div>
+            <Label className="text-amber-600">Misc (separate)</Label>
+            <div className="text-lg font-bold text-amber-700">{totalMisc.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Not added to total</span>
           </div>
           <div>
             <Label className="text-emerald-600">Total</Label>
             <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Rent + Fuel only</span>
           </div>
         </div>
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting || excavators.length === 0}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting || excavators.length === 0}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
       {/* Recent Entries */}
-      {excavatorOperations.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Equipment</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rent</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {excavatorOperations.slice(-5).reverse().map((op) => (
-                  <tr key={op.id} className={`hover:bg-gray-50 ${editingId === op.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{op.operation_date}</td>
-                    <td className="px-4 py-3 text-sm">{op.equipment_name || 'Excavator'}</td>
-                    <td className="px-4 py-3 text-sm">{op.hours_operated}</td>
-                    <td className="px-4 py-3 text-sm">{op.rent_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">{op.fuel_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{op.total_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(op)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <RecentEntriesSection
+        data={excavatorOperations}
+        primaryColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'equipment_name', label: 'Equipment' },
+          { key: 'hours_operated', label: 'Hours' },
+          { key: 'rent_amount', label: 'Rent' },
+          { key: 'fuel_amount', label: 'Fuel' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'equipment_name', label: 'Equipment' },
+          { key: 'hours_operated', label: 'Hours' },
+          { key: 'rate_per_hour', label: 'Rate/Hr' },
+          { key: 'rent_amount', label: 'Rent' },
+          { key: 'fuel_consumed', label: 'Fuel (L)' },
+          { key: 'fuel_rate', label: 'Fuel Rate' },
+          { key: 'fuel_amount', label: 'Fuel Amount' },
+          { key: 'misc_expense', label: 'Misc 1' },
+          { key: 'misc_description', label: 'Misc 1 Desc' },
+          { key: 'misc_expense_2', label: 'Misc 2' },
+          { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'total_amount', label: 'Total' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -581,10 +747,12 @@ const ExcavatorForm = () => {
 // ============================================================
 const LoadersForm = () => {
   const { equipment, loaderOperations, addLoaderOperation, updateLoaderOperation } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   // Filter loaders from equipment master data
   const loaders = useMemo(() => 
@@ -602,6 +770,8 @@ const LoadersForm = () => {
     defunct_cost_per_hour: '739.25',
     misc_expense: '',
     misc_description: '',
+    misc_expense_2: '',
+    misc_description_2: '',
     remarks: '',
   });
 
@@ -614,7 +784,9 @@ const LoadersForm = () => {
   const fuelAmount = (parseFloat(formData.fuel_consumed) || 0) * (parseFloat(formData.fuel_rate) || 0);
   const defunctCost = (parseFloat(formData.defunct_hours) || 0) * (parseFloat(formData.defunct_cost_per_hour) || 0);
   const miscAmount = parseFloat(formData.misc_expense) || 0;
-  const total = (parseFloat(formData.rent_per_day) || 0) + fuelAmount + miscAmount - defunctCost;
+  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
+  const totalMisc = miscAmount + miscAmount2;
+  const total = (parseFloat(formData.rent_per_day) || 0) + fuelAmount - defunctCost;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -634,6 +806,8 @@ const LoadersForm = () => {
       defunct_cost_per_hour: op.defunct_cost_per_hour?.toString() || '739.25',
       misc_expense: op.misc_expense?.toString() || '',
       misc_description: op.misc_description || '',
+      misc_expense_2: op.misc_expense_2?.toString() || '',
+      misc_description_2: op.misc_description_2 || '',
       remarks: op.remarks || '',
     });
     setError('');
@@ -652,6 +826,8 @@ const LoadersForm = () => {
       defunct_cost_per_hour: formData.defunct_cost_per_hour,
       misc_expense: '',
       misc_description: '',
+      misc_expense_2: '',
+      misc_description_2: '',
       remarks: '',
     });
   };
@@ -680,6 +856,8 @@ const LoadersForm = () => {
         defunct_cost: defunctCost,
         misc_expense: miscAmount,
         misc_description: formData.misc_description || null,
+        misc_expense_2: miscAmount2,
+        misc_description_2: formData.misc_description_2 || null,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -687,10 +865,14 @@ const LoadersForm = () => {
       if (editingId) {
         await updateLoaderOperation(editingId, payload);
         setSuccess('Loader entry updated!');
+        showToast('Loader entry updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addLoaderOperation(payload);
         setSuccess('Loader entry saved!');
+        showToast('Loader entry saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({
@@ -703,6 +885,8 @@ const LoadersForm = () => {
         defunct_cost_per_hour: formData.defunct_cost_per_hour,
         misc_expense: '',
         misc_description: '',
+        misc_expense_2: '',
+        misc_description_2: '',
         remarks: '',
       });
     } catch (err) {
@@ -715,7 +899,7 @@ const LoadersForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Loader Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Total = Rent + Fuel - Defunct + Misc (select loader from dropdown)</p>
+      <p className="text-sm text-gray-600 mb-4">Total = Rent + Fuel - Defunct (Misc tracked separately)</p>
 
       {loaders.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -766,15 +950,23 @@ const LoadersForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="misc_expense">Misc Expense (PKR)</Label>
+            <Label htmlFor="misc_expense">Misc Expense 1 (PKR)</Label>
             <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <Label htmlFor="misc_description">Misc Description</Label>
+            <Label htmlFor="misc_description">Misc 1 Description</Label>
             <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="Oil change, repairs, etc." />
+          </div>
+          <div>
+            <Label htmlFor="misc_expense_2">Misc Expense 2 (PKR)</Label>
+            <Input type="number" id="misc_expense_2" name="misc_expense_2" value={formData.misc_expense_2} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+          <div>
+            <Label htmlFor="misc_description_2">Misc 2 Description</Label>
+            <Input type="text" id="misc_description_2" name="misc_description_2" value={formData.misc_description_2} onChange={handleChange} placeholder="What is misc 2 for?" />
           </div>
           <div>
             <Label htmlFor="remarks">Remarks</Label>
@@ -799,59 +991,58 @@ const LoadersForm = () => {
             <span className="text-xs text-red-500">{formData.defunct_hours || 0}hrs × Rs.{formData.defunct_cost_per_hour}/hr</span>
           </div>
           <div>
-            <Label className="text-orange-600">Misc</Label>
-            <div className="text-lg font-bold text-orange-700">{miscAmount.toLocaleString()}</div>
+            <Label className="text-amber-600">Misc (separate)</Label>
+            <div className="text-lg font-bold text-amber-700">{totalMisc.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Not added to total</span>
           </div>
           <div>
             <Label className="text-emerald-600">Total</Label>
             <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Rent + Fuel - Defunct</span>
           </div>
         </div>
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting || loaders.length === 0}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting || loaders.length === 0}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
       {/* Recent Entries */}
-      {loaderOperations.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loader</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rent</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-red-500 uppercase">Defunct</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loaderOperations.slice(-5).reverse().map((op) => (
-                  <tr key={op.id} className={`hover:bg-gray-50 ${editingId === op.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{op.operation_date}</td>
-                    <td className="px-4 py-3 text-sm">{op.equipment_name || 'Loader'}</td>
-                    <td className="px-4 py-3 text-sm">{op.rent_per_day?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">{op.fuel_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-red-700">-{op.defunct_cost?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{op.total_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(op)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <RecentEntriesSection
+        data={loaderOperations}
+        primaryColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'equipment_name', label: 'Loader' },
+          { key: 'rent_per_day', label: 'Rent' },
+          { key: 'fuel_amount', label: 'Fuel' },
+          { key: 'defunct_cost', label: 'Defunct', headerClassName: 'text-red-500', cellClassName: 'text-red-700' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'operation_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'equipment_name', label: 'Loader' },
+          { key: 'rent_per_day', label: 'Rent/Day' },
+          { key: 'fuel_consumed', label: 'Fuel (L)' },
+          { key: 'fuel_rate', label: 'Fuel Rate' },
+          { key: 'fuel_amount', label: 'Fuel Amount' },
+          { key: 'defunct_hours', label: 'Defunct Hrs' },
+          { key: 'defunct_cost_per_hour', label: 'Defunct Cost/Hr' },
+          { key: 'defunct_cost', label: 'Defunct Cost' },
+          { key: 'misc_expense', label: 'Misc 1' },
+          { key: 'misc_description', label: 'Misc 1 Desc' },
+          { key: 'misc_expense_2', label: 'Misc 2' },
+          { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'total_amount', label: 'Total' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -861,10 +1052,12 @@ const LoadersForm = () => {
 // ============================================================
 const DumpersForm = () => {
   const { equipment, dumperOperations, addDumperOperation, updateDumperOperation } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   // Filter dumpers from equipment master data
   const dumpers = useMemo(() => 
@@ -881,6 +1074,8 @@ const DumpersForm = () => {
     rate_per_cft: '',
     misc_expense: '',
     misc_description: '',
+    misc_expense_2: '',
+    misc_description_2: '',
     remarks: '',
   });
 
@@ -894,7 +1089,9 @@ const DumpersForm = () => {
   const totalCft = totalTrips * (parseFloat(formData.cft_per_trip) || 0);
   const tripAmount = totalCft * (parseFloat(formData.rate_per_cft) || 0);
   const miscAmount = parseFloat(formData.misc_expense) || 0;
-  const total = tripAmount + miscAmount;
+  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
+  const totalMisc = miscAmount + miscAmount2;
+  const total = tripAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -913,6 +1110,8 @@ const DumpersForm = () => {
       rate_per_cft: op.rate_per_cft?.toString() || '',
       misc_expense: op.misc_expense?.toString() || '',
       misc_description: op.misc_description || '',
+      misc_expense_2: op.misc_expense_2?.toString() || '',
+      misc_description_2: op.misc_description_2 || '',
       remarks: op.remarks || '',
     });
     setError('');
@@ -930,6 +1129,8 @@ const DumpersForm = () => {
       rate_per_cft: formData.rate_per_cft,
       misc_expense: '',
       misc_description: '',
+      misc_expense_2: '',
+      misc_description_2: '',
       remarks: '',
     });
   };
@@ -956,6 +1157,8 @@ const DumpersForm = () => {
         trip_amount: tripAmount,
         misc_expense: miscAmount,
         misc_description: formData.misc_description || null,
+        misc_expense_2: miscAmount2,
+        misc_description_2: formData.misc_description_2 || null,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -963,10 +1166,14 @@ const DumpersForm = () => {
       if (editingId) {
         await updateDumperOperation(editingId, payload);
         setSuccess('Dumper entry updated!');
+        showToast('Dumper entry updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addDumperOperation(payload);
         setSuccess('Dumper entry saved!');
+        showToast('Dumper entry saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({
@@ -978,6 +1185,8 @@ const DumpersForm = () => {
         rate_per_cft: formData.rate_per_cft,
         misc_expense: '',
         misc_description: '',
+        misc_expense_2: '',
+        misc_description_2: '',
         remarks: '',
       });
     } catch (err) {
@@ -990,7 +1199,7 @@ const DumpersForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Dumper Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Trip Amount = Trips × CFT × Rate | Total = Trip Amount + Misc</p>
+      <p className="text-sm text-gray-600 mb-4">Trip Amount = Trips × CFT × Rate | Total = Trip Amount (Misc tracked separately)</p>
 
       {dumpers.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -1036,13 +1245,23 @@ const DumpersForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="misc_expense">Misc Expense (PKR)</Label>
+            <Label htmlFor="misc_expense">Misc Expense 1 (PKR)</Label>
             <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
 
           <div>
-            <Label htmlFor="misc_description">Misc Description</Label>
+            <Label htmlFor="misc_description">Misc 1 Description</Label>
             <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="Oil, repairs, etc." />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_expense_2">Misc Expense 2 (PKR)</Label>
+            <Input type="number" id="misc_expense_2" name="misc_expense_2" value={formData.misc_expense_2} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_description_2">Misc 2 Description</Label>
+            <Input type="text" id="misc_description_2" name="misc_description_2" value={formData.misc_description_2} onChange={handleChange} placeholder="What is misc 2 for?" />
           </div>
         </div>
 
@@ -1052,7 +1271,7 @@ const DumpersForm = () => {
         </div>
 
         {/* Summary */}
-        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-4 gap-4">
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-5 gap-4">
           <div>
             <Label className="text-gray-600">Total Trips</Label>
             <div className="text-lg font-bold">{totalTrips}</div>
@@ -1067,53 +1286,58 @@ const DumpersForm = () => {
             <div className="text-lg font-bold">{tripAmount.toLocaleString()}</div>
           </div>
           <div>
+            <Label className="text-amber-600">Misc (separate)</Label>
+            <div className="text-lg font-bold text-amber-700">{totalMisc.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Not added to total</span>
+          </div>
+          <div>
             <Label className="text-emerald-600">Total</Label>
             <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Trip Amount only</span>
           </div>
         </div>
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting || dumpers.length === 0}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting || dumpers.length === 0}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
       {/* Recent Entries */}
-      {dumperOperations.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dumper</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trips</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CFT</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {dumperOperations.slice(-5).reverse().map((op) => (
-                  <tr key={op.id} className={`hover:bg-gray-50 ${editingId === op.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{op.trip_date}</td>
-                    <td className="px-4 py-3 text-sm">{op.dumper_name}</td>
-                    <td className="px-4 py-3 text-sm">{(op.gravel_trips || 0) + (op.clay_trips || 0)}</td>
-                    <td className="px-4 py-3 text-sm">{op.total_cft?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{(op.trip_amount || op.total_amount)?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(op)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <RecentEntriesSection
+        data={dumperOperations}
+        primaryColumns={[
+          { key: 'trip_date', label: 'Date' },
+          { key: 'dumper_name', label: 'Dumper' },
+          { key: 'gravel_trips', label: 'Gravel' },
+          { key: 'clay_trips', label: 'Clay' },
+          { key: 'total_cft', label: 'CFT' },
+          { key: 'trip_amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'trip_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'dumper_name', label: 'Dumper' },
+          { key: 'gravel_trips', label: 'Gravel Trips' },
+          { key: 'clay_trips', label: 'Clay Trips' },
+          { key: 'cft_per_trip', label: 'CFT/Trip' },
+          { key: 'rate_per_cft', label: 'Rate/CFT' },
+          { key: 'total_trips', label: 'Total Trips' },
+          { key: 'total_cft', label: 'Total CFT' },
+          { key: 'trip_amount', label: 'Trip Amount' },
+          { key: 'misc_expense', label: 'Misc 1' },
+          { key: 'misc_description', label: 'Misc 1 Desc' },
+          { key: 'misc_expense_2', label: 'Misc 2' },
+          { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'total_amount', label: 'Total' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -1122,14 +1346,16 @@ const DumpersForm = () => {
 // BLASTING MATERIAL FORM - Uses dropdown for item selection
 // ============================================================
 const BlastingMaterialForm = () => {
-  const {  blastingMaterials, addBlastingMaterial, updateBlastingMaterial } = useData();
+  const { blastingItems, blastingMaterials, addBlastingMaterial, updateBlastingMaterial } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
-  // Common blasting items - can be added to expense categories for more flexibility
-  const defaultItems = ['Gelatin', 'Detonator', 'Fuse Wire', 'Safety Fuse', 'Blasting Powder', 'Other'];
+  // Items from expense_categories DB (BLASTING_ITEM type) with fallback
+  const defaultItems = blastingItems;
   
   const [formData, setFormData] = useState({
     purchase_date: new Date().toISOString().split('T')[0],
@@ -1200,10 +1426,14 @@ const BlastingMaterialForm = () => {
       if (editingId) {
         await updateBlastingMaterial(editingId, payload);
         setSuccess('Blasting material entry updated!');
+        showToast('Blasting material entry updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addBlastingMaterial(payload);
         setSuccess('Blasting material entry saved!');
+        showToast('Blasting material entry saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({
@@ -1283,46 +1513,37 @@ const BlastingMaterialForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
       {/* Recent Entries */}
-      {blastingMaterials.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {blastingMaterials.slice(-5).reverse().map((item) => (
-                  <tr key={item.id} className={`hover:bg-gray-50 ${editingId === item.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{item.purchase_date}</td>
-                    <td className="px-4 py-3 text-sm">{item.description}</td>
-                    <td className="px-4 py-3 text-sm">{item.quantity}</td>
-                    <td className="px-4 py-3 text-sm">{item.rate?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{item.total_amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <RecentEntriesSection
+        data={blastingMaterials}
+        primaryColumns={[
+          { key: 'purchase_date', label: 'Date' },
+          { key: 'description', label: 'Item' },
+          { key: 'quantity', label: 'Qty' },
+          { key: 'rate', label: 'Rate' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'purchase_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'description', label: 'Item' },
+          { key: 'quantity', label: 'Qty' },
+          { key: 'rate', label: 'Rate' },
+          { key: 'amount', label: 'Item Amount' },
+          { key: 'transport_charges', label: 'Transport' },
+          { key: 'total_amount', label: 'Total' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -1332,10 +1553,12 @@ const BlastingMaterialForm = () => {
 // ============================================================
 const LangarForm = () => {
   const { langarExpenses, addLangarExpense, updateLangarExpense } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [formData, setFormData] = useState({
     expense_date: new Date().toISOString().split('T')[0],
     description: '',
@@ -1383,10 +1606,14 @@ const LangarForm = () => {
       if (editingId) {
         await updateLangarExpense(editingId, payload);
         setSuccess('Langar expense updated!');
+        showToast('Langar expense updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addLangarExpense(payload);
         setSuccess('Langar expense saved!');
+        showToast('Langar expense saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({ expense_date: new Date().toISOString().split('T')[0], description: '', amount: '', remarks: '' });
@@ -1426,41 +1653,31 @@ const LangarForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
-      {langarExpenses.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {langarExpenses.slice(-5).reverse().map((exp) => (
-                  <tr key={exp.id} className={`hover:bg-gray-50 ${editingId === exp.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{exp.expense_date}</td>
-                    <td className="px-4 py-3 text-sm">{exp.description || '-'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{exp.amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Recent Entries */}
+      <RecentEntriesSection
+        data={langarExpenses}
+        primaryColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -1469,16 +1686,16 @@ const LangarForm = () => {
 // PLANT EXPENSE FORM - Uses expense categories dropdown
 // ============================================================
 const PlantExpenseForm = () => {
-  const { expenseCategories, plantExpenses, addPlantExpense, updatePlantExpense } = useData();
+  const { plantExpenseCategories, plantExpenses, addPlantExpense, updatePlantExpense } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
-  const defaultCategories = ['Maintenance', 'Repair', 'Spare Parts', 'Electrical', 'Other'];
-  const categories = expenseCategories.length > 0 
-    ? expenseCategories.map(c => c.category_name) 
-    : defaultCategories;
+  // Categories from expense_categories DB (PLANT_EXPENSE type) with fallback
+  const categories = plantExpenseCategories;
 
   const [formData, setFormData] = useState({
     expense_date: new Date().toISOString().split('T')[0],
@@ -1530,10 +1747,14 @@ const PlantExpenseForm = () => {
       if (editingId) {
         await updatePlantExpense(editingId, payload);
         setSuccess('Plant expense updated!');
+        showToast('Plant expense updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addPlantExpense(payload);
         setSuccess('Plant expense saved!');
+        showToast('Plant expense saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({ expense_date: new Date().toISOString().split('T')[0], category: formData.category, description: '', amount: '', remarks: '' });
@@ -1580,43 +1801,33 @@ const PlantExpenseForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
-      {plantExpenses.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {plantExpenses.slice(-5).reverse().map((exp) => (
-                  <tr key={exp.id} className={`hover:bg-gray-50 ${editingId === exp.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{exp.expense_date}</td>
-                    <td className="px-4 py-3 text-sm">{exp.category || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{exp.description || '-'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{exp.amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Recent Entries */}
+      <RecentEntriesSection
+        data={plantExpenses}
+        primaryColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'category', label: 'Category' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'category', label: 'Category' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -1625,16 +1836,16 @@ const PlantExpenseForm = () => {
 // MISC EXPENSE FORM - Uses expense categories dropdown
 // ============================================================
 const MiscExpenseForm = () => {
-  const { expenseCategories, miscExpenses, addMiscExpense, updateMiscExpense } = useData();
+  const { miscExpenseCategories, miscExpenses, addMiscExpense, updateMiscExpense } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
-  const defaultCategories = ['General', 'Transport', 'Office', 'Utility', 'Other'];
-  const categories = expenseCategories.length > 0 
-    ? expenseCategories.map(c => c.category_name) 
-    : defaultCategories;
+  // Categories from expense_categories DB (MISC_EXPENSE type) with fallback
+  const categories = miscExpenseCategories;
 
   const [formData, setFormData] = useState({
     expense_date: new Date().toISOString().split('T')[0],
@@ -1686,10 +1897,14 @@ const MiscExpenseForm = () => {
       if (editingId) {
         await updateMiscExpense(editingId, payload);
         setSuccess('Misc expense updated!');
+        showToast('Misc expense updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addMiscExpense(payload);
         setSuccess('Misc expense saved!');
+        showToast('Misc expense saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       setFormData({ expense_date: new Date().toISOString().split('T')[0], category: formData.category, description: '', amount: '', remarks: '' });
@@ -1736,43 +1951,33 @@ const MiscExpenseForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
-      {miscExpenses.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {miscExpenses.slice(-5).reverse().map((exp) => (
-                  <tr key={exp.id} className={`hover:bg-gray-50 ${editingId === exp.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{exp.expense_date}</td>
-                    <td className="px-4 py-3 text-sm">{exp.category || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{exp.description || '-'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{exp.amount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Recent Entries */}
+      <RecentEntriesSection
+        data={miscExpenses}
+        primaryColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'category', label: 'Category' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'expense_date', label: 'Date' },
+          { key: 'day_name', label: 'Day' },
+          { key: 'category', label: 'Category' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+      />
     </div>
   );
 };
@@ -1782,10 +1987,12 @@ const MiscExpenseForm = () => {
 // ============================================================
 const SalaryForm = () => {
   const { humanResources, salaries, addSalary, updateSalary } = useData();
+  const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   const activeEmployees = humanResources.filter(h => h.status === 'active');
 
@@ -1879,10 +2086,14 @@ const SalaryForm = () => {
       if (editingId) {
         await updateSalary(editingId, payload);
         setSuccess('Salary updated!');
+        showToast('Salary updated!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
         await addSalary(payload);
         setSuccess('Salary saved!');
+        showToast('Salary saved!', 'success');
+        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
       const emp = activeEmployees[0];
@@ -1957,47 +2168,39 @@ const SalaryForm = () => {
 
         <div className="flex justify-end gap-2">
           {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant="success" disabled={isSubmitting || activeEmployees.length === 0}>
-            {isSubmitting ? 'Saving...' : editingId ? 'Update' : 'Save Entry'}
+          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting || activeEmployees.length === 0}
+            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
+            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
           </Button>
         </div>
       </form>
 
-      {salaries.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Recent Entries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overtime</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deductions</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {salaries.slice(-5).reverse().map((sal) => (
-                  <tr key={sal.id} className={`hover:bg-gray-50 ${editingId === sal.id ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-3 text-sm">{sal.salary_month}</td>
-                    <td className="px-4 py-3 text-sm">{getEmployeeName(sal.employee_id)}</td>
-                    <td className="px-4 py-3 text-sm">{sal.base_salary?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-green-600">+{sal.overtime?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-red-600">-{sal.deductions?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-700">{sal.net_salary?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button onClick={() => handleEdit(sal)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Recent Entries */}
+      <RecentEntriesSection
+        data={salaries}
+        primaryColumns={[
+          { key: 'salary_month', label: 'Month' },
+          { key: 'employee_id', label: 'Employee' },
+          { key: 'base_salary', label: 'Base' },
+          { key: 'overtime', label: 'Overtime' },
+          { key: 'deductions', label: 'Deductions' },
+          { key: 'net_salary', label: 'Net', cellClassName: 'font-medium text-emerald-700' },
+        ]}
+        allColumns={[
+          { key: 'salary_month', label: 'Month' },
+          { key: 'employee_id', label: 'Employee' },
+          { key: 'base_salary', label: 'Base Salary' },
+          { key: 'overtime', label: 'Overtime' },
+          { key: 'deductions', label: 'Deductions' },
+          { key: 'net_salary', label: 'Net Salary' },
+          { key: 'remarks', label: 'Remarks' },
+        ]}
+        editingId={editingId}
+        onEdit={handleEdit}
+        formatters={{
+          employee_id: (val) => getEmployeeName(val),
+        }}
+      />
     </div>
   );
 };

@@ -1,28 +1,29 @@
-# Dependency directories
+# Dependencies
 node_modules/
-backend/node_modules/
-frontend/node_modules/
 
-# docs
+# Lock files (regenerated on install)
+package-lock.json
+
+# Internal docs & sample data
 _docs/
 
-# Build artifacts
+# Build & distribution artifacts
 dist/
 dist_build/
 dist_pkg/
 frontend/build/
 build/
+electron/dist/
 
 # Database files
 *.db
-backend/process_management.db
 
 # Environment variables
 .env
 .env.local
 .env.*.local
 
-# Operating System files
+# OS files
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -30,11 +31,9 @@ desktop.ini
 # IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-*.log

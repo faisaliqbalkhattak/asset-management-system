@@ -34,10 +34,12 @@ const { getDayName } = require('../shared/utilities');
  * @access  Private
  */
 const getAllCategories = asyncHandler(async (req, res, next) => {
-    const { active } = req.query;
+    const { active, type } = req.query;
     
     let categories;
-    if (active === 'true') {
+    if (type) {
+        categories = ExpenseCategoryRepository.findByType(type);
+    } else if (active === 'true') {
         categories = ExpenseCategoryRepository.findActive();
     } else {
         categories = ExpenseCategoryRepository.findAll();

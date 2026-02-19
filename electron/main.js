@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { fork } = require('child_process');
 
 let mainWindow;
@@ -38,19 +39,53 @@ function createWindow() {
 function startBackend() {
   const isDev = process.env.NODE_ENV === 'development';
   
-  // Locate app.js
-  // When packaged, __dirname is inside resources/app/electron/
-  // Backend is at resources/app/backend/
-  const backendPath = path.join(__dirname, isDev ? '..' : '.', 'backend', 'app.js');
+  // Locate app.js - try multiple paths for different packaging strategies
+  const pathsToTry = [
+    // Dev: electron/../backend/app.js
+    path.join(__dirname, '..', 'backend', 'app.js'),
+    // electron-builder: resources/app/backend/app.js  
+    path.join(__dirname, 'backend', 'app.js'),
+    // electron-packager --extra-resource: resources/backend/app.js
+    path.join(process.resourcesPath || __dirname, 'backend', 'app.js'),
+  ];
+  
+  let backendPath;
+  for (const p of pathsToTry) {
+    console.log(`  Checking backend at: ${p} -> ${fs.existsSync(p) ? 'FOUND' : 'not found'}`);
+    if (fs.existsSync(p)) {
+      backendPath = p;
+      break;
+    }
+  }
+  
+  if (!backendPath) {
+    console.error('Could not find backend app.js in any expected location!');
+    return;
+  }
   
   console.log(`Starting backend from: ${backendPath}`);
+
+  // Locate frontend build folder to pass to backend
+  const frontendPaths = [
+    path.join(__dirname, '..', 'frontend', 'build'),
+    path.join(__dirname, 'frontend', 'build'),
+    path.join(process.resourcesPath || __dirname, 'build'),
+  ];
+  let frontendBuildPath = '';
+  for (const p of frontendPaths) {
+    if (fs.existsSync(p)) {
+      frontendBuildPath = p;
+      break;
+    }
+  }
+  console.log(`Frontend build path: ${frontendBuildPath || 'NOT FOUND (API only)'}`);
 
   serverProcess = fork(backendPath, [], {
     env: { 
       ...process.env, 
       PORT: 3001,
       NODE_ENV: 'production',
-      // Ensure DB Path is not overwritten by dev env if any
+      FRONTEND_BUILD_PATH: frontendBuildPath,
     },
     silent: false // Let backend output to console
   });

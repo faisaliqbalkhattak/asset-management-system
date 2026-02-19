@@ -85,7 +85,7 @@ function addDailyProduction(data) {
 
     // Calculate derived values
     const clayDustPercent = parseFloat(data.clay_dust_percent) || 33.33;
-    const allowancePercent = parseFloat(data.allowance_percent) || 15;
+    const allowancePercent = parseFloat(data.allowance_percent) || 0;
     const gravelCft = parseFloat(gravel_cft) || 0;
 
     const clay_dust_cft = round2(gravelCft * clayDustPercent / 100);

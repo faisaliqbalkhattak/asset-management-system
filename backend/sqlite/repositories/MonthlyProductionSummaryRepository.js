@@ -28,6 +28,7 @@ class MonthlyProductionSummaryRepository extends BaseRepository {
         const soldCft = parseFloat(data.sold_at_site_cft || data.sold_cft) || 0;
         const soldAmount = parseFloat(data.sold_at_site_amount || data.sold_amount) || 0;
         const approxCost = parseFloat(data.approx_per_cft_cost || data.approx_cost) || 23;
+        const allowancePercent = parseFloat(data.allowance_percent) || 0;
 
         // Per CFT cost = Sold Amount / Sold CFT
         const perCftCost = soldCft > 0 ? soldAmount / soldCft : 0;
@@ -47,6 +48,7 @@ class MonthlyProductionSummaryRepository extends BaseRepository {
             sold_at_site_cft: soldCft,
             sold_at_site_amount: soldAmount,
             approx_per_cft_cost: approxCost,
+            allowance_percent: allowancePercent,
             
             per_cft_cost: Math.round(perCftCost * 100) / 100,
             stock_at_site_cft: Math.round(stockCft * 100) / 100,

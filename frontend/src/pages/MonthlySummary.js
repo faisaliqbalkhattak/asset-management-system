@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { Select } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
@@ -7,9 +7,19 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const FULL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
                           'July', 'August', 'September', 'October', 'November', 'December'];
 
+// Non-equipment expense categories (from separate DB tables)
+// misc_exp intentionally excluded from the main expense table
+const NON_EQUIPMENT_CATEGORIES = [
+  { key: 'blasting', label: 'Blasting' },
+  { key: 'langar', label: 'Langar' },
+  { key: 'plant_exp', label: 'Plant Exp' },
+  { key: 'human_res', label: 'HR Salaries' },
+];
+
 const MonthlySummary = () => {
   const {
     equipment,
+    expenseCategories,
     generatorOperations,
     excavatorOperations,
     loaderOperations,
@@ -25,20 +35,56 @@ const MonthlySummary = () => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
 
-  const DUMPER_KEY_MAP = useMemo(() => {
-    const dumperMap = {};
-    equipment
-      .filter(e => e.equipment_type === 'DUMPER') // Include all dumpers, even inactive
-      .forEach(d => {
-        // Create consistent key based on code
-        // Remove 'DMP-' prefix and dashes to match initMonth keys (e.g., 'DMP-TKR219' -> 'dumper_tkr219')
-        const cleanCode = d.equipment_code.toLowerCase().replace('dmp-', '').replace(/-/g, '');
-        const key = `dumper_${cleanCode}`;
-        dumperMap[d.equipment_name] = key;
-        if (d.id) dumperMap[d.id] = key; // Map ID to key for robust lookup
-      });
-    return dumperMap;
+  // Build dynamic equipment categories from master table (non-DUMPER types)
+  const equipmentCategories = useMemo(() => {
+    const types = [...new Set((equipment || []).map(e => e.equipment_type))];
+    const mapping = {
+      'GENERATOR': { key: 'generator', label: 'Generator', hasMisc: false },
+      'EXCAVATOR': { key: 'excavator', label: 'Excavator', hasMisc: true },
+      'LOADER': { key: 'loaders', label: 'Loaders', hasMisc: true },
+    };
+    return types.filter(t => t !== 'DUMPER' && mapping[t]).map(t => mapping[t]);
   }, [equipment]);
+
+  // Build dynamic dumper list from equipment master table
+  const dumpers = useMemo(() => {
+    return equipment
+      .filter(e => e.equipment_type === 'DUMPER')
+      .map(d => {
+        const cleanCode = d.equipment_code.toLowerCase().replace('dmp-', '').replace(/-/g, '');
+        return {
+          key: `dumper_${cleanCode}`,
+          miscKey: `dumper_${cleanCode}_misc`,
+          label: d.equipment_name,
+          id: d.id,
+          code: d.equipment_code,
+        };
+      });
+  }, [equipment]);
+
+  // Build name/id to key lookup map for dumpers
+  const dumperKeyMap = useMemo(() => {
+    const map = {};
+    dumpers.forEach(d => {
+      map[d.label] = d.key;
+      if (d.id) map[d.id] = d.key;
+    });
+    return map;
+  }, [dumpers]);
+
+  // Equipment categories that have misc tracking - dynamically from equipment master table
+  const miscCategories = useMemo(() => {
+    const cats = [];
+    // Add misc for equipment types that have misc columns (detected from equipment master)
+    equipmentCategories.filter(ec => ec.hasMisc).forEach(ec => {
+      cats.push({ key: `${ec.key}_misc`, label: `${ec.label} Misc` });
+    });
+    // Add misc for each registered dumper
+    dumpers.forEach(d => {
+      cats.push({ key: d.miscKey, label: `${d.label} Misc` });
+    });
+    return cats;
+  }, [equipmentCategories, dumpers]);
 
   // Get available years from data
   const availableYears = useMemo(() => {
@@ -47,7 +93,6 @@ const MonthlySummary = () => {
       ...generatorOperations,
       ...salaries,
     ];
-    
     allData.forEach((item) => {
       const date = item.operation_date || item.trip_date || item.expense_date || 
                    item.purchase_date || item.production_date || item.salary_month;
@@ -74,24 +119,30 @@ const MonthlySummary = () => {
       return { month: d.getMonth(), year: d.getFullYear() };
     };
 
+    // Dynamic initMonth based on registered equipment and dumpers from master table
     const initMonth = (key) => {
       if (!data[key]) {
-        data[key] = {
-          generator: 0, 
-          excavator: 0, excavator_misc: 0,
-          loaders: 0,
-          dumper_tkr219: 0, dumper_tkr219_misc: 0,
-          dumper_tac388: 0, dumper_tac388_misc: 0,
-          dumper_tab959: 0, dumper_tab959_misc: 0,
-          dumper_taj656: 0, dumper_taj656_misc: 0,
-          dumper_tae601: 0, dumper_tae601_misc: 0,
-          blasting: 0, langar: 0, plant_exp: 0, human_res: 0, misc_exp: 0,
-          total: 0, grand_total: 0
+        const monthData = {
+          total: 0, total_misc: 0, balance: 0, grand_total: 0
         };
+        // Initialize equipment categories dynamically from master table
+        equipmentCategories.forEach(ec => {
+          monthData[ec.key] = 0;
+          if (ec.hasMisc) monthData[`${ec.key}_misc`] = 0;
+        });
+        // Initialize dumpers dynamically from master table
+        dumpers.forEach(d => {
+          monthData[d.key] = 0;
+          monthData[d.miscKey] = 0;
+        });
+        // Initialize non-equipment categories
+        NON_EQUIPMENT_CATEGORIES.forEach(c => {
+          monthData[c.key] = 0;
+        });
+        data[key] = monthData;
       }
     };
 
-    // Filter function for selected month/year
     const shouldInclude = (dateStr) => {
       if (!selectedMonth && !selectedYear) return true;
       const parsed = getFullKey(dateStr);
@@ -101,7 +152,6 @@ const MonthlySummary = () => {
       return true;
     };
 
-    // Generator Operations
     generatorOperations.forEach(op => {
       if (!shouldInclude(op.operation_date)) return;
       const monthKey = getMonthKey(op.operation_date);
@@ -110,52 +160,47 @@ const MonthlySummary = () => {
       data[monthKey].generator += op.total_amount || 0;
     });
 
-    // Excavator Operations (with misc tracked separately)
     excavatorOperations.forEach(op => {
       if (!shouldInclude(op.operation_date)) return;
       const monthKey = getMonthKey(op.operation_date);
       if (!monthKey) return;
       initMonth(monthKey);
       data[monthKey].excavator += op.total_amount || 0;
-      data[monthKey].excavator_misc += op.misc_amount || 0;
+      data[monthKey].excavator_misc += (op.misc_expense || 0) + (op.misc_expense_2 || 0);
     });
 
-    // Loader Operations
     loaderOperations.forEach(op => {
       if (!shouldInclude(op.operation_date)) return;
       const monthKey = getMonthKey(op.operation_date);
       if (!monthKey) return;
       initMonth(monthKey);
       data[monthKey].loaders += op.total_amount || 0;
+      data[monthKey].loaders_misc += (op.misc_expense || 0) + (op.misc_expense_2 || 0);
     });
 
-    // Dumper Operations (trip amount only)
     dumperOperations.forEach(op => {
       if (!shouldInclude(op.trip_date)) return;
       const monthKey = getMonthKey(op.trip_date);
       if (!monthKey) return;
       initMonth(monthKey);
-      // Try ID first, then name
-      const key = DUMPER_KEY_MAP[op.equipment_id] || DUMPER_KEY_MAP[op.dumper_name];
+      const key = dumperKeyMap[op.equipment_id] || dumperKeyMap[op.dumper_name];
       if (key) {
-        data[monthKey][key] += op.trip_amount || 0;
+        data[monthKey][key] = (data[monthKey][key] || 0) + (op.trip_amount || 0);
+        data[monthKey][key + '_misc'] = (data[monthKey][key + '_misc'] || 0) + (op.misc_expense || 0) + (op.misc_expense_2 || 0);
       }
     });
 
-    // Dumper Misc Expenses (tracked separately)
     dumperMiscExpenses.forEach(exp => {
       if (!shouldInclude(exp.expense_date)) return;
       const monthKey = getMonthKey(exp.expense_date);
       if (!monthKey) return;
       initMonth(monthKey);
-      // Try ID first, then name (note: misc repo uses dumper_id)
-      const key = DUMPER_KEY_MAP[exp.dumper_id] || DUMPER_KEY_MAP[exp.dumper_name];
+      const key = dumperKeyMap[exp.dumper_id] || dumperKeyMap[exp.dumper_name];
       if (key) {
-        data[monthKey][key + '_misc'] += exp.amount || 0;
+        data[monthKey][key + '_misc'] = (data[monthKey][key + '_misc'] || 0) + (exp.amount || 0);
       }
     });
 
-    // Blasting Materials
     blastingMaterials.forEach(m => {
       if (!shouldInclude(m.purchase_date)) return;
       const monthKey = getMonthKey(m.purchase_date);
@@ -164,7 +209,6 @@ const MonthlySummary = () => {
       data[monthKey].blasting += m.total_amount || 0;
     });
 
-    // Langar Expenses
     langarExpenses.forEach(e => {
       if (!shouldInclude(e.expense_date)) return;
       const monthKey = getMonthKey(e.expense_date);
@@ -173,7 +217,6 @@ const MonthlySummary = () => {
       data[monthKey].langar += e.amount || 0;
     });
 
-    // Plant Expenses
     plantExpenses.forEach(e => {
       if (!shouldInclude(e.expense_date)) return;
       const monthKey = getMonthKey(e.expense_date);
@@ -182,7 +225,6 @@ const MonthlySummary = () => {
       data[monthKey].plant_exp += e.amount || 0;
     });
 
-    // Misc Expenses
     miscExpenses.forEach(e => {
       if (!shouldInclude(e.expense_date)) return;
       const monthKey = getMonthKey(e.expense_date);
@@ -191,7 +233,6 @@ const MonthlySummary = () => {
       data[monthKey].misc_exp += e.amount || 0;
     });
 
-    // Salaries (salary_month is YYYY-MM format, convert to date for filtering)
     salaries.forEach(s => {
       const salaryDate = s.salary_month ? s.salary_month + '-01' : null;
       if (!shouldInclude(salaryDate)) return;
@@ -201,27 +242,43 @@ const MonthlySummary = () => {
       data[monthKey].human_res += s.net_salary || 0;
     });
 
-    // Calculate totals for each month
     Object.keys(data).forEach(key => {
       const d = data[key];
-      // Total excludes misc (misc is for reference only, not included in cost calculation)
-      d.total = d.generator + d.excavator + d.loaders +
-                d.dumper_tkr219 + d.dumper_tac388 + d.dumper_tab959 + 
-                d.dumper_taj656 + d.dumper_tae601 +
-                d.blasting + d.langar + d.plant_exp + d.human_res + d.misc_exp;
-      
-      // Grand total includes misc for full visibility
-      d.grand_total = d.total + d.excavator_misc +
-                      d.dumper_tkr219_misc + d.dumper_tac388_misc + d.dumper_tab959_misc +
-                      d.dumper_taj656_misc + d.dumper_tae601_misc;
+      // Equipment totals (dynamic from master table)
+      let equipmentTotal = 0;
+      equipmentCategories.forEach(ec => {
+        equipmentTotal += d[ec.key] || 0;
+      });
+      // Dumper totals
+      let dumperTotal = 0;
+      let dumperMiscTotal = 0;
+      dumpers.forEach(dm => {
+        dumperTotal += d[dm.key] || 0;
+        dumperMiscTotal += d[dm.miscKey] || 0;
+      });
+      // Non-equipment category totals
+      let categoryTotal = 0;
+      NON_EQUIPMENT_CATEGORIES.forEach(c => {
+        categoryTotal += d[c.key] || 0;
+      });
+      // Total excludes misc expenses (misc is tracked separately as reference)
+      d.total = equipmentTotal + dumperTotal + categoryTotal;
+      // Misc total from all equipment types that have misc columns
+      let equipMiscTotal = 0;
+      equipmentCategories.filter(ec => ec.hasMisc).forEach(ec => {
+        equipMiscTotal += d[`${ec.key}_misc`] || 0;
+      });
+      d.total_misc = equipMiscTotal + dumperMiscTotal;
+      d.balance = d.total + d.total_misc;
+      d.grand_total = d.balance;
     });
 
     return data;
   }, [generatorOperations, excavatorOperations, loaderOperations, dumperOperations,
       dumperMiscExpenses, blastingMaterials, langarExpenses, plantExpenses, 
-      miscExpenses, salaries, selectedMonth, selectedYear]);
+      miscExpenses, salaries, selectedMonth, selectedYear, dumpers, dumperKeyMap,
+      equipmentCategories]);
 
-  // Sort months chronologically
   const sortedMonths = useMemo(() => {
     return Object.keys(monthlySummaryData).sort((a, b) => {
       const [aMonth, aYear] = a.split('-');
@@ -232,46 +289,63 @@ const MonthlySummary = () => {
     });
   }, [monthlySummaryData]);
 
-  // Calculate grand totals
   const grandTotals = useMemo(() => {
     const totals = {
-      generator: 0, excavator: 0, excavator_misc: 0, loaders: 0,
-      dumper_tkr219: 0, dumper_tkr219_misc: 0,
-      dumper_tac388: 0, dumper_tac388_misc: 0,
-      dumper_tab959: 0, dumper_tab959_misc: 0,
-      dumper_taj656: 0, dumper_taj656_misc: 0,
-      dumper_tae601: 0, dumper_tae601_misc: 0,
-      blasting: 0, langar: 0, plant_exp: 0, human_res: 0, misc_exp: 0,
-      total: 0, grand_total: 0
+      total: 0, total_misc: 0, balance: 0, grand_total: 0
     };
-    
+    // Initialize from dynamic equipment categories
+    equipmentCategories.forEach(ec => {
+      totals[ec.key] = 0;
+      if (ec.hasMisc) totals[`${ec.key}_misc`] = 0;
+    });
+    // Initialize dumpers
+    dumpers.forEach(d => {
+      totals[d.key] = 0;
+      totals[d.miscKey] = 0;
+    });
+    // Initialize non-equipment categories
+    NON_EQUIPMENT_CATEGORIES.forEach(c => {
+      totals[c.key] = 0;
+    });
     Object.values(monthlySummaryData).forEach(d => {
       Object.keys(totals).forEach(key => {
         totals[key] += d[key] || 0;
       });
     });
-    
     return totals;
-  }, [monthlySummaryData]);
+  }, [monthlySummaryData, dumpers, equipmentCategories]);
 
   const formatCurrency = (value) => {
     if (!value || value === 0) return '-';
     return value.toLocaleString();
   };
 
+  const expenseBreakdown = useMemo(() => {
+    const groups = [];
+    // Equipment categories from master table
+    const equipTotal = equipmentCategories.reduce((sum, ec) => sum + (grandTotals[ec.key] || 0), 0);
+    if (equipmentCategories.length > 0) {
+      groups.push({ label: `Equipment (${equipmentCategories.map(ec => ec.label).join(' + ')})`, value: equipTotal });
+    }
+    // Dumpers from master table
+    if (dumpers.length > 0) {
+      groups.push({ label: `Dumpers (All ${dumpers.length})`, value: dumpers.reduce((sum, d) => sum + (grandTotals[d.key] || 0), 0) });
+    }
+    // Non-equipment categories (from DB tables)
+    NON_EQUIPMENT_CATEGORIES.forEach(cat => {
+      groups.push({ label: cat.label, value: grandTotals[cat.key] || 0 });
+    });
+    return groups;
+  }, [grandTotals, dumpers, equipmentCategories]);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Monthly Summary</h1>
-        
         <div className="flex gap-4 items-end">
           <div>
             <Label htmlFor="monthFilter">Month</Label>
-            <Select
-              id="monthFilter"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-            >
+            <Select id="monthFilter" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
               <option value="">All Months</option>
               {FULL_MONTH_NAMES.map((month) => (
                 <option key={month} value={month}>{month}</option>
@@ -280,11 +354,7 @@ const MonthlySummary = () => {
           </div>
           <div>
             <Label htmlFor="yearFilter">Year</Label>
-            <Select
-              id="yearFilter"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-            >
+            <Select id="yearFilter" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
               <option value="">All Years</option>
               {availableYears.map((year) => (
                 <option key={year} value={year}>{year}</option>
@@ -295,6 +365,7 @@ const MonthlySummary = () => {
       </div>
 
       <p className="text-sm text-gray-600 mb-4">
+        Columns are dynamically generated from registered equipment and expense categories.
       </p>
 
       {sortedMonths.length === 0 ? (
@@ -307,75 +378,30 @@ const MonthlySummary = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-emerald-50">
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-emerald-700 uppercase sticky left-0 bg-emerald-50 z-10">
-                    Month
-                  </th>
-                  {/* Generator */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Generator
-                  </th>
-                  {/* Excavator with Misc */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Excavator
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Exc.Misc
-                  </th>
-                  {/* Loaders */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Loaders
-                  </th>
-                  {/* Dumpers with Misc */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    TKR-219
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Misc
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    TAC-388
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Misc
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    TAB-959
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Misc
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    TAJ-656
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Misc
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    TAE-601
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">
-                    Misc
-                  </th>
-                  {/* Other expenses */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Blasting
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Langar
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Plant Exp
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    HR Salaries
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">
-                    Misc Exp
-                  </th>
-                  {/* Totals */}
-                  <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-emerald-600">
-                    Total
-                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-emerald-700 uppercase sticky left-0 bg-emerald-50 z-10">Month</th>
+                  {/* Dynamic equipment columns from master table */}
+                  {equipmentCategories.map(ec => (
+                    <React.Fragment key={ec.key}>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{ec.label}</th>
+                      {ec.hasMisc && (
+                        <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">{ec.label.slice(0,3)}.M</th>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  {/* Dynamic dumper columns from master table */}
+                  {dumpers.map(d => (
+                    <React.Fragment key={d.key}>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{d.label}</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">Misc</th>
+                    </React.Fragment>
+                  ))}
+                  {/* Non-equipment expense categories */}
+                  {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                    <th key={cat.key} className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{cat.label}</th>
+                  ))}
+                  <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-emerald-600">Total</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-amber-600">Misc Total</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-blue-600">Balance</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -383,61 +409,58 @@ const MonthlySummary = () => {
                   const d = monthlySummaryData[monthKey];
                   return (
                     <tr key={monthKey} className="hover:bg-emerald-50 transition-colors">
-                      <td className="px-3 py-2 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
-                        {monthKey}
-                      </td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.generator)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.excavator)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.excavator_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.loaders)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.dumper_tkr219)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.dumper_tkr219_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.dumper_tac388)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.dumper_tac388_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.dumper_tab959)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.dumper_tab959_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.dumper_taj656)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.dumper_taj656_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.dumper_tae601)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d.dumper_tae601_misc)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.blasting)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.langar)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.plant_exp)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.human_res)}</td>
-                      <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d.misc_exp)}</td>
-                      <td className="px-3 py-2 text-sm text-right font-bold text-white bg-emerald-600">
-                        {formatCurrency(d.total)}
-                      </td>
+                      <td className="px-3 py-2 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">{monthKey}</td>
+                      {/* Dynamic equipment columns */}
+                      {equipmentCategories.map(ec => (
+                        <React.Fragment key={ec.key}>
+                          <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d[ec.key])}</td>
+                          {ec.hasMisc && (
+                            <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d[`${ec.key}_misc`])}</td>
+                          )}
+                        </React.Fragment>
+                      ))}
+                      {/* Dynamic dumper columns */}
+                      {dumpers.map(dm => (
+                        <React.Fragment key={dm.key}>
+                          <td className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d[dm.key])}</td>
+                          <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(d[dm.miscKey])}</td>
+                        </React.Fragment>
+                      ))}
+                      {/* Non-equipment categories */}
+                      {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                        <td key={cat.key} className="px-3 py-2 text-sm text-right text-gray-700">{formatCurrency(d[cat.key])}</td>
+                      ))}
+                      <td className="px-3 py-2 text-sm text-right font-bold text-white bg-emerald-600">{formatCurrency(d.total)}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-white bg-amber-600">{formatCurrency(d.total_misc)}</td>
+                      <td className="px-3 py-2 text-sm text-right font-bold text-white bg-blue-600">{formatCurrency(d.balance)}</td>
                     </tr>
                   );
                 })}
-                {/* Grand Total Row */}
                 <tr className="bg-emerald-100 font-bold">
-                  <td className="px-3 py-3 text-sm font-bold text-emerald-800 sticky left-0 bg-emerald-100 z-10">
-                    GRAND TOTAL
-                  </td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.generator)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.excavator)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.excavator_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.loaders)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.dumper_tkr219)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.dumper_tkr219_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.dumper_tac388)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.dumper_tac388_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.dumper_tab959)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.dumper_tab959_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.dumper_taj656)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.dumper_taj656_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.dumper_tae601)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals.dumper_tae601_misc)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.blasting)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.langar)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.plant_exp)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.human_res)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals.misc_exp)}</td>
-                  <td className="px-3 py-3 text-sm text-right text-white bg-emerald-700">
-                    {formatCurrency(grandTotals.total)}
-                  </td>
+                  <td className="px-3 py-3 text-sm font-bold text-emerald-800 sticky left-0 bg-emerald-100 z-10">GRAND TOTAL</td>
+                  {/* Dynamic equipment grand totals */}
+                  {equipmentCategories.map(ec => (
+                    <React.Fragment key={ec.key}>
+                      <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals[ec.key])}</td>
+                      {ec.hasMisc && (
+                        <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals[`${ec.key}_misc`])}</td>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  {/* Dynamic dumper grand totals */}
+                  {dumpers.map(dm => (
+                    <React.Fragment key={dm.key}>
+                      <td className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals[dm.key])}</td>
+                      <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(grandTotals[dm.miscKey])}</td>
+                    </React.Fragment>
+                  ))}
+                  {/* Non-equipment grand totals */}
+                  {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                    <td key={cat.key} className="px-3 py-3 text-sm text-right text-emerald-800">{formatCurrency(grandTotals[cat.key])}</td>
+                  ))}
+                  <td className="px-3 py-3 text-sm text-right text-white bg-emerald-700">{formatCurrency(grandTotals.total)}</td>
+                  <td className="px-3 py-3 text-sm text-right text-white bg-amber-700">{formatCurrency(grandTotals.total_misc)}</td>
+                  <td className="px-3 py-3 text-sm text-right text-white bg-blue-700">{formatCurrency(grandTotals.balance)}</td>
                 </tr>
               </tbody>
             </table>
@@ -450,39 +473,12 @@ const MonthlySummary = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Breakdown</h3>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Equipment (Gen + Exc + Loaders)</span>
-              <span className="font-medium">
-                {formatCurrency(grandTotals.generator + grandTotals.excavator + grandTotals.loaders)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Dumpers (All 5)</span>
-              <span className="font-medium">
-                {formatCurrency(
-                  grandTotals.dumper_tkr219 + grandTotals.dumper_tac388 + 
-                  grandTotals.dumper_tab959 + grandTotals.dumper_taj656 + grandTotals.dumper_tae601
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Materials (Blasting)</span>
-              <span className="font-medium">{formatCurrency(grandTotals.blasting)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Operating (Langar + Plant)</span>
-              <span className="font-medium">
-                {formatCurrency(grandTotals.langar + grandTotals.plant_exp)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">HR Salaries</span>
-              <span className="font-medium">{formatCurrency(grandTotals.human_res)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Misc Expenses</span>
-              <span className="font-medium">{formatCurrency(grandTotals.misc_exp)}</span>
-            </div>
+            {expenseBreakdown.map((group) => (
+              <div key={group.label} className="flex justify-between">
+                <span className="text-gray-600">{group.label}</span>
+                <span className="font-medium">{formatCurrency(group.value)}</span>
+              </div>
+            ))}
             <hr className="my-2" />
             <div className="flex justify-between text-lg font-bold text-emerald-700">
               <span>Total Expenses</span>
@@ -495,40 +491,16 @@ const MonthlySummary = () => {
           <h3 className="text-lg font-medium text-gray-900 mb-4">Misc Expenses (Reference)</h3>
           <p className="text-sm text-gray-500 mb-4">These are tracked separately and not included in Total</p>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-amber-600">Excavator Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.excavator_misc)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-amber-600">TKR-219 Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.dumper_tkr219_misc)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-amber-600">TAC-388 Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.dumper_tac388_misc)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-amber-600">TAB-959 Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.dumper_tab959_misc)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-amber-600">TAJ-656 Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.dumper_taj656_misc)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-amber-600">TAE-601 Misc</span>
-              <span className="font-medium text-amber-700">{formatCurrency(grandTotals.dumper_tae601_misc)}</span>
-            </div>
+            {miscCategories.map(cat => (
+              <div key={cat.key} className="flex justify-between">
+                <span className="text-amber-600">{cat.label}</span>
+                <span className="font-medium text-amber-700">{formatCurrency(grandTotals[cat.key])}</span>
+              </div>
+            ))}
             <hr className="my-2" />
             <div className="flex justify-between text-lg font-bold text-amber-700">
               <span>Total Misc</span>
-              <span>
-                {formatCurrency(
-                  grandTotals.excavator_misc + grandTotals.dumper_tkr219_misc + 
-                  grandTotals.dumper_tac388_misc + grandTotals.dumper_tab959_misc + 
-                  grandTotals.dumper_taj656_misc + grandTotals.dumper_tae601_misc
-                )}
-              </span>
+              <span>{formatCurrency(grandTotals.total_misc)}</span>
             </div>
           </div>
         </div>
@@ -541,14 +513,22 @@ const MonthlySummary = () => {
               <div className="text-2xl font-bold text-emerald-800">{sortedMonths.length}</div>
             </div>
             <div>
-              <div className="text-sm text-emerald-600">Total Expenses</div>
+              <div className="text-sm text-emerald-600">Total (Operations)</div>
               <div className="text-2xl font-bold text-emerald-800">{formatCurrency(grandTotals.total)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-amber-600">Misc Total</div>
+              <div className="text-2xl font-bold text-amber-700">{formatCurrency(grandTotals.total_misc)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-blue-600">Balance (Total + Misc)</div>
+              <div className="text-2xl font-bold text-blue-800">{formatCurrency(grandTotals.balance)}</div>
             </div>
             <div>
               <div className="text-sm text-emerald-600">Average Monthly</div>
               <div className="text-2xl font-bold text-emerald-800">
                 {sortedMonths.length > 0 
-                  ? formatCurrency(Math.round(grandTotals.total / sortedMonths.length))
+                  ? formatCurrency(Math.round(grandTotals.balance / sortedMonths.length))
                   : '-'}
               </div>
             </div>

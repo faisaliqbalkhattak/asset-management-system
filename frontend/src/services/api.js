@@ -422,6 +422,8 @@ export const equipmentApi = {
 export const expenseCategoryApi = {
   // Get all categories
   getAll: () => api.get('/expenses/categories'),
+  // Get categories by type (MAIN, BLASTING_ITEM, PLANT_EXPENSE, MISC_EXPENSE)
+  getByType: (type) => api.get(`/expenses/categories?type=${type}`),
   // Get single category
   getById: (id) => api.get(`/expenses/categories/${id}`),
   // Create new category

@@ -5,6 +5,15 @@ import { Label } from '../components/ui/Label';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Non-equipment expense categories (from separate DB tables)
+// misc_exp intentionally excluded from the main expense total
+const NON_EQUIPMENT_CATEGORIES = [
+  { key: 'blasting', label: 'Blasting', shortLabel: 'Blast' },
+  { key: 'langar', label: 'Langar', shortLabel: 'Lang' },
+  { key: 'plant_exp', label: 'Plant Exp', shortLabel: 'Plant' },
+  { key: 'human_res', label: 'HR Salaries', shortLabel: 'HR' },
+];
+
 const YearlySummary = () => {
   const {
     equipment,
@@ -32,6 +41,17 @@ const YearlySummary = () => {
         name: d.equipment_name,
         key: `dumper_${d.equipment_code.toLowerCase().replace(/-/g, '')}`
       }));
+  }, [equipment]);
+
+  // Dynamic equipment categories from master table (non-DUMPER)
+  const equipmentCategories = useMemo(() => {
+    const types = [...new Set((equipment || []).map(e => e.equipment_type))];
+    const mapping = {
+      'GENERATOR': { key: 'generator', label: 'Generator', shortLabel: 'Gen', hasMisc: false },
+      'EXCAVATOR': { key: 'excavator', label: 'Excavator', shortLabel: 'Exc', hasMisc: true },
+      'LOADER': { key: 'loaders', label: 'Loaders', shortLabel: 'Load', hasMisc: true },
+    };
+    return types.filter(t => t !== 'DUMPER' && mapping[t]).map(t => mapping[t]);
   }, [equipment]);
 
   // Get available years from all data
@@ -162,9 +182,9 @@ const YearlySummary = () => {
         .filter(k => !k.endsWith('_misc'))
         .reduce((sum, k) => sum + (dumperData[k] || 0), 0);
 
-      // Total (excludes misc)
+      // Total (excludes misc - misc is reference only)
       const total = generator + excavator + loaders + dumperTotal +
-                    blasting + langar + plant_exp + human_res + misc_exp;
+                    blasting + langar + plant_exp + human_res;
 
       // Total misc (all misc columns)
       const total_misc = excavator_misc + loaders_misc + 
@@ -273,50 +293,52 @@ const YearlySummary = () => {
         </div>
       </div>
 
-      {/* Expense Category Cards */}
+      {/* Expense Category Cards - Dynamic from master table */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-          <div className="text-xs text-yellow-700">Generator</div>
-          <div className="text-lg font-bold text-yellow-800">{formatCurrency(yearlyTotals.generator)}</div>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-          <div className="text-xs text-orange-700">Excavator</div>
-          <div className="text-lg font-bold text-orange-800">{formatCurrency(yearlyTotals.excavator)}</div>
-        </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <div className="text-xs text-amber-700">Loaders</div>
-          <div className="text-lg font-bold text-amber-800">{formatCurrency(yearlyTotals.loaders)}</div>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="text-xs text-blue-700">All Dumpers</div>
-          <div className="text-lg font-bold text-blue-800">
-            {formatCurrency(totalDumperAmount)}
+        {/* Equipment categories from master table */}
+        {equipmentCategories.map(ec => {
+          const colors = {
+            generator: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', bold: 'text-yellow-800' },
+            excavator: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', bold: 'text-orange-800' },
+            loaders: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', bold: 'text-amber-800' },
+          };
+          const c = colors[ec.key] || { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', bold: 'text-gray-800' };
+          return (
+            <div key={ec.key} className={`${c.bg} ${c.border} border rounded-lg p-3`}>
+              <div className={`text-xs ${c.text}`}>{ec.label}</div>
+              <div className={`text-lg font-bold ${c.bold}`}>{formatCurrency(yearlyTotals[ec.key])}</div>
+            </div>
+          );
+        })}
+        {/* All Dumpers */}
+        {registeredDumpers.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-xs text-blue-700">All Dumpers</div>
+            <div className="text-lg font-bold text-blue-800">
+              {formatCurrency(totalDumperAmount)}
+            </div>
           </div>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="text-xs text-red-700">Blasting</div>
-          <div className="text-lg font-bold text-red-800">{formatCurrency(yearlyTotals.blasting)}</div>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="text-xs text-green-700">Langar</div>
-          <div className="text-lg font-bold text-green-800">{formatCurrency(yearlyTotals.langar)}</div>
-        </div>
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-          <div className="text-xs text-purple-700">Plant Exp</div>
-          <div className="text-lg font-bold text-purple-800">{formatCurrency(yearlyTotals.plant_exp)}</div>
-        </div>
-        <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
-          <div className="text-xs text-pink-700">HR Salaries</div>
-          <div className="text-lg font-bold text-pink-800">{formatCurrency(yearlyTotals.human_res)}</div>
-        </div>
-        <div className="bg-gray-100 border border-gray-300 rounded-lg p-3">
-          <div className="text-xs text-gray-700">Misc Exp</div>
-          <div className="text-lg font-bold text-gray-800">{formatCurrency(yearlyTotals.misc_exp)}</div>
-        </div>
+        )}
+        {/* Non-equipment categories */}
+        {NON_EQUIPMENT_CATEGORIES.map(cat => {
+          const colors = {
+            blasting: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', bold: 'text-red-800' },
+            langar: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', bold: 'text-green-800' },
+            plant_exp: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', bold: 'text-purple-800' },
+            human_res: { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', bold: 'text-pink-800' },
+          };
+          const c = colors[cat.key] || { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', bold: 'text-gray-800' };
+          return (
+            <div key={cat.key} className={`${c.bg} ${c.border} border rounded-lg p-3`}>
+              <div className={`text-xs ${c.text}`}>{cat.label}</div>
+              <div className={`text-lg font-bold ${c.bold}`}>{formatCurrency(yearlyTotals[cat.key])}</div>
+            </div>
+          );
+        })}
       </div>
 
       <p className="text-sm text-gray-600 mb-4">
-        Dumper columns are dynamically generated based on registered equipment.
+        Columns are dynamically generated from registered equipment and expense categories.
       </p>
 
       {/* Monthly Breakdown Table */}
@@ -332,11 +354,15 @@ const YearlySummary = () => {
                 <th className="px-3 py-3 text-left text-xs font-medium text-emerald-700 uppercase sticky left-0 bg-emerald-50 z-10">
                   Month
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Gen</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Exc</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">E.M</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Load</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">L.M</th>
+                {/* Dynamic equipment headers from master table */}
+                {equipmentCategories.map(ec => (
+                  <React.Fragment key={ec.key}>
+                    <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{ec.shortLabel}</th>
+                    {ec.hasMisc && (
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">{ec.shortLabel.slice(0,1)}.M</th>
+                    )}
+                  </React.Fragment>
+                ))}
                 {/* Dynamic Dumper Headers */}
                 {registeredDumpers.map(dumper => (
                   <React.Fragment key={dumper.key}>
@@ -346,11 +372,10 @@ const YearlySummary = () => {
                     <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">M</th>
                   </React.Fragment>
                 ))}
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Blast</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Lang</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Plant</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">HR</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">Misc</th>
+                {/* Non-equipment category headers */}
+                {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                  <th key={cat.key} className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{cat.shortLabel}</th>
+                ))}
                 <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-emerald-600">Total</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-green-700 uppercase bg-green-50">Prod</th>
               </tr>
@@ -361,11 +386,15 @@ const YearlySummary = () => {
                   <td className="px-3 py-2 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
                     {row.month}
                   </td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.generator)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.excavator)}</td>
-                  <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(row.excavator_misc)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.loaders)}</td>
-                  <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(row.loaders_misc)}</td>
+                  {/* Dynamic equipment data */}
+                  {equipmentCategories.map(ec => (
+                    <React.Fragment key={ec.key}>
+                      <td className="px-3 py-2 text-sm text-right">{formatCurrency(row[ec.key])}</td>
+                      {ec.hasMisc && (
+                        <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(row[`${ec.key}_misc`])}</td>
+                      )}
+                    </React.Fragment>
+                  ))}
                   {/* Dynamic Dumper Data */}
                   {registeredDumpers.map(dumper => (
                     <React.Fragment key={dumper.key}>
@@ -373,11 +402,10 @@ const YearlySummary = () => {
                       <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(row[`${dumper.key}_misc`])}</td>
                     </React.Fragment>
                   ))}
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.blasting)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.langar)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.plant_exp)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.human_res)}</td>
-                  <td className="px-3 py-2 text-sm text-right">{formatCurrency(row.misc_exp)}</td>
+                  {/* Non-equipment categories */}
+                  {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                    <td key={cat.key} className="px-3 py-2 text-sm text-right">{formatCurrency(row[cat.key])}</td>
+                  ))}
                   <td className="px-3 py-2 text-sm text-right font-bold text-white bg-emerald-600">
                     {formatCurrency(row.total)}
                   </td>
@@ -392,11 +420,15 @@ const YearlySummary = () => {
                 <td className="px-3 py-3 text-sm font-bold text-emerald-800 sticky left-0 bg-emerald-100 z-10">
                   TOTAL
                 </td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.generator)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.excavator)}</td>
-                <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(yearlyTotals.excavator_misc)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.loaders)}</td>
-                <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(yearlyTotals.loaders_misc)}</td>
+                {/* Dynamic equipment totals */}
+                {equipmentCategories.map(ec => (
+                  <React.Fragment key={ec.key}>
+                    <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals[ec.key])}</td>
+                    {ec.hasMisc && (
+                      <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(yearlyTotals[`${ec.key}_misc`])}</td>
+                    )}
+                  </React.Fragment>
+                ))}
                 {/* Dynamic Dumper Totals */}
                 {registeredDumpers.map(dumper => (
                   <React.Fragment key={dumper.key}>
@@ -404,11 +436,10 @@ const YearlySummary = () => {
                     <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(yearlyTotals[`${dumper.key}_misc`])}</td>
                   </React.Fragment>
                 ))}
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.blasting)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.langar)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.plant_exp)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.human_res)}</td>
-                <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals.misc_exp)}</td>
+                {/* Non-equipment totals */}
+                {NON_EQUIPMENT_CATEGORIES.map(cat => (
+                  <td key={cat.key} className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals[cat.key])}</td>
+                ))}
                 <td className="px-3 py-3 text-sm text-right text-white bg-emerald-700">
                   {formatCurrency(yearlyTotals.total)}
                 </td>

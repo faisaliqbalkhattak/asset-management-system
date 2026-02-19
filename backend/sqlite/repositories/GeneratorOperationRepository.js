@@ -42,9 +42,20 @@ class GeneratorOperationRepository extends BaseRepository {
 
     /**
      * Calculate totals before save
+     * If fuel_consumption_rate is provided, fuel_consumed = fuel_consumption_rate * timing_hours
+     * fuel_amount = fuel_consumed * fuel_rate
+     * total_amount = fuel_amount + rent_per_day
      */
     calculateTotals(data) {
-        const fuelConsumed = parseFloat(data.fuel_consumed) || 0;
+        const timingHours = parseFloat(data.timing_hours) || 0;
+        const fuelConsumptionRate = parseFloat(data.fuel_consumption_rate) || 0;
+        let fuelConsumed = parseFloat(data.fuel_consumed) || 0;
+        
+        // Auto-calculate fuel_consumed from rate * hours if rate is provided
+        if (fuelConsumptionRate > 0 && timingHours > 0) {
+            fuelConsumed = fuelConsumptionRate * timingHours;
+        }
+        
         const fuelRate = parseFloat(data.fuel_rate) || 0;
         const fuelAmount = fuelConsumed * fuelRate;
         const rentPerDay = parseFloat(data.rent_per_day) || 0;
@@ -52,6 +63,8 @@ class GeneratorOperationRepository extends BaseRepository {
 
         return {
             ...data,
+            fuel_consumption_rate: Math.round(fuelConsumptionRate * 100) / 100,
+            fuel_consumed: Math.round(fuelConsumed * 100) / 100,
             fuel_amount: Math.round(fuelAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100
         };

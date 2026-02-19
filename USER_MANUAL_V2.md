@@ -1,108 +1,135 @@
-# Process Management System - User Manual (v2.0)
+# Process Management System — User Manual
 
-**Date:** Feb 09, 2026  
-**Status:** Latest Build  
-**Platform:** Offline Desktop Application
+> **Version:** 2.1 | **Updated:** February 2026 | **Platform:** Offline Desktop (Windows)
 
 ---
 
-## 1. Introduction & Workflow
-This application manages the daily operations, expenses, production, and profit distribution for the plant. The workflow follows a logical sequence:
-1.  **Setup Data (Masters):** Define your resources once.
-2.  **Daily Entries:** Record day-to-day activities (fuel, trips, expenses).
-3.  **Production Tracking:** Record monthly sales and stock levels.
-4.  **Analysis:** View expense summaries and calculate profit shares.
+## 1. Overview
+
+This application manages the full lifecycle of a plant/quarry operation:
+
+1. **Setup** — register equipment, employees, and expense categories.
+2. **Record** — enter daily operations, fuel, trips, expenses, and salaries.
+3. **Track** — log daily production and monthly sales/stock.
+4. **Analyse** — view expense summaries (monthly, yearly) and calculate profit shares.
 
 ---
 
-## 2. Getting Started & Dashboard
-Upon launching the application, you land on the **Dashboard**.
--   **Quick Stats:** View total equipment count, active employees, and recent operational snapshots.
--   **Main Navigation:** The top menu bar provides access to all modules.
+## 2. Dashboard
+
+The landing screen shows quick-glance statistics — total equipment, active employees, and recent activity. The top navigation bar provides access to every module.
 
 ---
 
-## 3. Module Guide
+## 3. Modules
 
-### Step 1: Masters (Setup)
-*Use this module to initialize your data. You rarely need to visit this after setup.*
+### 3.1 Masters (One-Time Setup)
 
--   **Human Resources:** Add employees, set designations (e.g., Manager, Operator), and define Base Salaries.
--   **Equipment:** Register vehicles and machines (Generators, Excavators, Dumpers).
-    -   *Control:* Toggle `Active` status to hide unused equipment from daily entry forms.
--   **Expense Categories:** Create categories for miscellaneous expenses to keep reporting organized.
+| Section | Purpose |
+|---------|---------|
+| **Human Resources** | Add employees with designations and base salaries. |
+| **Equipment** | Register generators, excavators, loaders, and dumpers. Toggle the *Active* flag to show/hide equipment in daily entry forms. Equipment registered here automatically generates columns in summary reports. |
+| **Expense Categories** | Create categories for blasting items, plant expenses, and miscellaneous items. |
 
-### Step 2: Daily Entries (Core Operations)
-*This is where 90% of data entry happens. The module is divided into tabs for each operational area.*
+### 3.2 Daily Entries
 
-1.  **Generators:** Record running hours, fuel consumed, and fuel rate.
-    -   *Rent:* Pre-filled (e.g., ~19k/day) but editable.
-2.  **Excavator & Loaders:** Similar to generators; track hours and fuel.
-3.  **Dumpers:** Track trips and fuel.
-    -   **Important:** Ensure trip counts are accurate as they impact cost analysis.
-4.  **Blasting Material:** Log explosive purchases and usage.
-5.  **Expenses (Langar, Plant, Misc):** Log daily petty cash, kitchen (Langar) expenses, and general plant repairs.
-6.  **Salaries:** Generate monthly salary records based on the Base Salary defined in Masters. You can adjust the final amount for deductions or bonuses.
+The primary data-entry module, organised into tabs:
 
-### Step 3: Production (Monthly Output)
-*Navigate here at the end of every month to record revenue and stock.*
+| Tab | What to Record |
+|-----|---------------|
+| **Generators** | Running hours, fuel consumed, fuel rate. Rent is pre-filled but editable. |
+| **Excavator** | Hours, fuel, and up to two miscellaneous expense fields. |
+| **Loaders** | Same structure as Excavator. |
+| **Dumpers** | Trips and fuel per registered dumper. |
+| **Blasting Material** | Explosive purchases and usage. |
+| **Langar / Plant Exp / Misc** | Kitchen expenses, plant repairs, and general miscellaneous costs. |
+| **Salaries** | Monthly salary records generated from base salary in Masters. Adjustable for deductions or bonuses. |
 
-**Input Form:**
--   **Month/Year:** Select the reporting period.
--   **Quantity Sold:** Total cubic feet (CFT) of material sold to customers.
--   **Total Sale Amount (Cash):** The actual cash received from sales.
--   **Stock Quantity:** The volume of material produced but sitting in the yard (unsold).
--   **Expected Stock Rate:** The estimated value per CFT of the unsold stock.
-    -   *Logic:* This rate is used to calculate the asset value of your stock for profit sharing.
+All forms display toast notifications on success or error.
 
-**History Table:**
--   View a list of previous months.
--   **Edit:** Use the "Edit" button to correct mistakes in past records.
+### 3.3 Production
 
-### Step 4: Monthly Summary (Expense Reports)
-*A consolidated view of where money went.*
+#### Daily Production
 
--   **Filter:** Select Month/Year to view specific reports.
--   **Breakdown:** See totals for Generator Fuel, Excavator Rent, Dumper Trips, and Salaries in a single view.
--   **Export:** Use this page to verify cost inputs before checking profit sharing.
+| Field | Description |
+|-------|-------------|
+| Gravel Input (CFT) | Total gravel processed. |
+| Clay & Dust (%) | Default 33.33 %. Deducted from gravel to produce usable aggregate. |
+| Net Aggregate | Equals aggregate produced (gravel minus clay/dust). Allowance is applied at the monthly level, not here. |
 
-### Step 5: Profit Sharing (Distribution)
-*The final analysis tool for business partners.*
+A process-flow diagram displays the live calculation: **Gravel → Clay/Dust Deduction → Net Aggregate**.
 
-**Profit Calculation Logic:**
+Use the **Edit** and **Delete** buttons in the Production History table to correct past entries.
 
-1.  **Gross Total (Revenue):**
-    -   `Cash Received` (from Sales)
-    -   `Stock Value` (Calculated for unsold material)
-    -   **Gross Total** = Cash Received + Stock Value
+#### Monthly Sales & Stock
 
-2.  **Deductions:**
-    -   **Total Expenses:** Sum of all daily operational costs (Fuel, Salaries, Rent, etc).
-    -   *Note on Rates:* 
-        -   **Selling Rate (Cost per CFT):** Calculated as `Total Cash` / `Sold Quantity`. This shows the actual realized rate.
-        -   **Stock Rate:** The manual rate you entered in the Production page to value your unsold stock.
+| Field | Description |
+|-------|-------------|
+| Allowance & Margin (%) | Default 15 %. Applied to the monthly aggregate total. |
+| Quantity Sold (CFT) | Material sold to customers. |
+| Total Sale Amount (PKR) | Cash received from sales. |
+| Expected Stock Rate (/CFT) | Estimated value per CFT of unsold stock. |
 
-3.  **Net Profit:**
-    -   `Gross Total` - `Total Expenses` = **Net Profit**
-    -   *This profit figure includes the value of unsold stock.*
+**Stock & Value Analysis** (7 cards, real-time):
+
+| Card | Meaning |
+|------|---------|
+| Aggregate Produced | Monthly total before allowance. |
+| Allowance Deduction | Percentage and CFT deducted. |
+| Net Production | After allowance. |
+| Remaining Stock | Net Production minus Sold. |
+| Selling Price / CFT | Sale amount ÷ sold quantity. |
+| Est. Stock Value | Remaining stock × expected rate. |
+| Total Revenue | Sales + stock value. |
+
+### 3.4 Monthly Summary
+
+A consolidated expense report with dynamically generated columns:
+
+- **Equipment columns** — auto-created from registered generators, excavators, and loaders.
+- **Dumper columns** — one column per registered dumper, plus a misc column each.
+- **Fixed categories** — Blasting, Langar, Plant Expenses, HR Salaries.
+- **Misc excluded** — miscellaneous expenses are tracked in a separate reference card and are **not** included in the main Total.
+
+Use the Month/Year filters to narrow the view. Summary cards show the expense breakdown, misc reference totals, and overall balance.
+
+### 3.5 Yearly Summary
+
+Annual view of all expense categories by month.
+
+- **Dynamic categories** — cards and table columns update automatically when equipment is added or removed in Masters.
+- **Quarterly breakdown** — expenses, production, and cost-per-CFT per quarter.
+- **Misc excluded** — same treatment as Monthly Summary.
+
+### 3.6 Profit Sharing
+
+Calculates partner profit distribution:
+
+| Step | Calculation |
+|------|-------------|
+| **Gross Revenue** | Cash Received + Stock Value |
+| **Total Expenses** | Sum of all operational costs (excludes misc) |
+| **Net Profit** | Gross Revenue − Total Expenses |
+
+Profit is then split according to the configured partner ratios.
 
 ---
 
-## 4. Common Operations & Tips
+## 4. Correcting Data
 
-### How to Fix Data Errors
--   **Wrong Daily Entry:** Go to the `Transactions` page. It lists every single entry made in the system. Use the Filters to find the specific record and click "Delete" or "Edit".
--   **Wrong Production Data:** Go to the `Production` page history table and click "Edit".
-
-### Application Logic Notes
--   **Stock Valuation:** If you see unexpected profit numbers, check your `Expected Stock Rate` in the Production page. A high rate will inflate your "Stock Asset Value".
--   **Rent Calculation:** Generator rent defaults to a fixed monthly divisor. Ensure this matches your actual contract terms.
--   **Zero Cost?** If records show 0 cost, ensure you have entered `Fuel Rate` and `Quantity` in your daily entries.
-
-### Troubleshooting
--   **"No Data Found":** Ensure you have selected the correct Month/Year in the filters.
--   **Calculations look wrong:** Check `Monthly Summary` to see if a specific category (like Dumpers) has an unusually high expense entered by mistake (e.g., an extra zero).
+| Scenario | Where to Go |
+|----------|-------------|
+| Wrong daily entry | **Transactions** page — filter, then Edit or Delete. |
+| Wrong production entry | **Production** page → History table → Edit / Delete. |
+| Wrong monthly sales | **Production** page → Monthly Sales History → Edit. |
 
 ---
 
-*For technical support or database backups, refer to the `scripts` folder documentation.*
+## 5. Key Behaviour Notes
+
+- **Allowance** is applied at the monthly level (Monthly Sales), not per daily entry. Default is 15 %.
+- **Dynamic summaries** — Monthly and Yearly tables automatically reflect equipment changes in Masters.
+- **Misc expenses** are excluded from the main Total in all summary views. They appear in a dedicated reference section.
+- **Stock valuation** — if profit figures look unexpected, verify the *Expected Stock Rate* on the Production page.
+- **Missing columns** — ensure the equipment is registered and marked Active in Masters → Equipment.
+- **No data shown** — check that the correct Month/Year filter is selected.

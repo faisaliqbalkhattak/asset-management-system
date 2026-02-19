@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { DataProvider } from './context/DataContext';
+import { ToastProvider } from './components/Toast';
 import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
 import DailyEntries from './pages/DailyEntries';
@@ -14,7 +15,8 @@ import YearlySummary from './pages/YearlySummary';
 function App() {
   return (
     <DataProvider>
-      <Router>
+      <ToastProvider>
+        <Router>
         <div className="min-h-screen bg-gray-50">
           <Navigation />
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -31,6 +33,7 @@ function App() {
           </main>
         </div>
       </Router>
+      </ToastProvider>
     </DataProvider>
   );
 }

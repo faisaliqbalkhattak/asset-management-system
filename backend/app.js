@@ -86,6 +86,8 @@ async function startServer() {
     // Serve static frontend files in production/electron
     // Robust path resolution for various environments (Local, Electron, Pkg)
     const pathsToCheck = [
+        // Electron main.js passes the resolved frontend build path
+        process.env.FRONTEND_BUILD_PATH,
         // Electron unpacked structure: backend and frontend are siblings under resources/app/
         path.join(__dirname, '..', 'frontend', 'build'),
         // Alternative: backend/../frontend/build (same as above, explicit)
@@ -95,7 +97,7 @@ async function startServer() {
         path.join(process.cwd(), 'build'),
         // Standard deployment (backend/public)
         path.join(__dirname, '..', 'public'),
-    ];
+    ].filter(Boolean);
 
     let staticPath = null;
     

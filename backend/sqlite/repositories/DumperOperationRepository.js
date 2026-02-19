@@ -2,7 +2,7 @@
 // DUMPER OPERATION REPOSITORY
 // =====================================================
 // Daily dumper trips - one row per vehicle per day
-// Total = trip_amount + misc_expense
+// Total = trip_amount (misc tracked separately)
 // Links to equipment table via equipment_id (FK)
 // =====================================================
 
@@ -45,19 +45,18 @@ class DumperOperationRepository extends BaseRepository {
      * total_trips = gravel_trips + clay_trips
      * total_cft = total_trips * cft_per_trip
      * trip_amount = total_cft * rate_per_cft
-     * total_amount = trip_amount + misc_expense
+     * total_amount = trip_amount (misc tracked separately, NOT added to total)
      */
     calculateTotals(data) {
         const gravelTrips = parseInt(data.gravel_trips) || 0;
         const clayTrips = parseInt(data.clay_trips) || 0;
         const cftPerTrip = parseFloat(data.cft_per_trip) || 838;
         const ratePerCft = parseFloat(data.rate_per_cft) || 1.9;
-        const miscExpense = parseFloat(data.misc_expense) || 0;
 
         const totalTrips = gravelTrips + clayTrips;
         const totalCft = totalTrips * cftPerTrip;
         const tripAmount = totalCft * ratePerCft;
-        const totalAmount = tripAmount + miscExpense;
+        const totalAmount = tripAmount;
 
         return {
             ...data,

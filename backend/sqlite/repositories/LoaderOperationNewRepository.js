@@ -2,7 +2,7 @@
 // LOADER OPERATION REPOSITORY (NEW)
 // =====================================================
 // Handles loaders operations
-// Total = rent_per_day + fuel_amount - defunct_cost + misc_expense
+// Total = rent_per_day + fuel_amount - defunct_cost (misc tracked separately)
 // Links to equipment table via equipment_id (FK)
 // =====================================================
 
@@ -44,7 +44,7 @@ class LoaderOperationNewRepository extends BaseRepository {
      * Calculate totals before save
      * fuel_amount = fuel_consumed * fuel_rate
      * defunct_cost = defunct_hours * defunct_cost_per_hour
-     * total = rent_per_day + fuel_amount - defunct_cost + misc_expense
+     * total = rent_per_day + fuel_amount - defunct_cost (misc tracked separately, NOT added to total)
      */
     calculateTotals(data) {
         const rentPerDay = parseFloat(data.rent_per_day) || 0;
@@ -52,11 +52,10 @@ class LoaderOperationNewRepository extends BaseRepository {
         const fuelRate = parseFloat(data.fuel_rate) || 0;
         const defunctHours = parseFloat(data.defunct_hours) || 0;
         const defunctCostPerHour = parseFloat(data.defunct_cost_per_hour) || 0;
-        const miscExpense = parseFloat(data.misc_expense) || 0;
 
         const fuelAmount = fuelConsumed * fuelRate;
         const defunctCost = defunctHours * defunctCostPerHour;
-        const totalAmount = rentPerDay + fuelAmount - defunctCost + miscExpense;
+        const totalAmount = rentPerDay + fuelAmount - defunctCost;
 
         return {
             ...data,

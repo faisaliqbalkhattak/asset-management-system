@@ -2,7 +2,7 @@
 // EXCAVATOR OPERATION REPOSITORY
 // =====================================================
 // Handles all database operations for excavator EX-400
-// Total = fuel_amount + rent_amount + misc_expense
+// Total = fuel_amount + rent_amount (misc tracked separately)
 // Links to equipment table via equipment_id (FK)
 // =====================================================
 
@@ -44,18 +44,17 @@ class ExcavatorOperationRepository extends BaseRepository {
      * Calculate totals before save
      * rent_amount = hours_operated * rate_per_hour
      * fuel_amount = fuel_consumed * fuel_rate
-     * total = rent_amount + fuel_amount + misc_expense
+     * total = rent_amount + fuel_amount (misc is tracked separately, NOT added to total)
      */
     calculateTotals(data) {
         const hoursOperated = parseFloat(data.hours_operated) || 0;
         const ratePerHour = parseFloat(data.rate_per_hour) || 0;
         const fuelConsumed = parseFloat(data.fuel_consumed) || 0;
         const fuelRate = parseFloat(data.fuel_rate) || 0;
-        const miscExpense = parseFloat(data.misc_expense) || 0;
 
         const rentAmount = hoursOperated * ratePerHour;
         const fuelAmount = fuelConsumed * fuelRate;
-        const totalAmount = rentAmount + fuelAmount + miscExpense;
+        const totalAmount = rentAmount + fuelAmount;
 
         return {
             ...data,

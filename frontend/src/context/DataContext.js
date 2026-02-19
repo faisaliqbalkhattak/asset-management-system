@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../services/api';
 
 const DataContext = createContext(undefined);
@@ -71,6 +71,20 @@ export const DataProvider = ({ children }) => {
 
   // Expense categories
   const [expenseCategories, setExpenseCategories] = useState([]);
+
+  // Computed: typed category lists for dropdown items
+  const blastingItems = useMemo(() => {
+    const items = expenseCategories.filter(c => c.category_type === 'BLASTING_ITEM').map(c => c.category_name);
+    return items.length > 0 ? items : ['Gelatin', 'Detonator', 'Fuse Wire', 'Safety Fuse', 'Blasting Powder', 'Other'];
+  }, [expenseCategories]);
+  const plantExpenseCategories = useMemo(() => {
+    const items = expenseCategories.filter(c => c.category_type === 'PLANT_EXPENSE').map(c => c.category_name);
+    return items.length > 0 ? items : ['Maintenance', 'Repair', 'Spare Parts', 'Electrical', 'Other'];
+  }, [expenseCategories]);
+  const miscExpenseCategories = useMemo(() => {
+    const items = expenseCategories.filter(c => c.category_type === 'MISC_EXPENSE').map(c => c.category_name);
+    return items.length > 0 ? items : ['General', 'Transport', 'Office', 'Utility', 'Other'];
+  }, [expenseCategories]);
 
   // eslint-disable-next-line no-unused-vars
   const [equipmentTypes, setEquipmentTypes] = useState(['GENERATOR', 'EXCAVATOR', 'LOADER', 'DUMPER']);
@@ -907,6 +921,9 @@ export const DataProvider = ({ children }) => {
     addExpenseCategory,
     updateExpenseCategory,
     deleteExpenseCategory,
+    blastingItems,
+    plantExpenseCategories,
+    miscExpenseCategories,
 
     // Equipment Types
     equipmentTypes,

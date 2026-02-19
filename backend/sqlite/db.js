@@ -449,7 +449,8 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS expense_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_code TEXT UNIQUE,
-        category_name TEXT UNIQUE NOT NULL,
+        category_name TEXT NOT NULL,
+        category_type TEXT DEFAULT 'MAIN',
         description TEXT,
         color TEXT,
         is_active INTEGER DEFAULT 1,
@@ -692,6 +693,7 @@ function createTables() {
         operation_date DATE NOT NULL,
         day_name TEXT,
         timing_hours REAL DEFAULT 0,
+        fuel_consumption_rate REAL DEFAULT 0,
         fuel_consumed REAL DEFAULT 0,
         fuel_rate REAL DEFAULT 0,
         fuel_amount REAL DEFAULT 0,
@@ -714,6 +716,8 @@ function createTables() {
         fuel_rate REAL DEFAULT 0,
         misc_expense REAL DEFAULT 0,
         misc_description TEXT,
+        misc_expense_2 REAL DEFAULT 0,
+        misc_description_2 TEXT,
         rent_amount REAL DEFAULT 0,
         fuel_amount REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
@@ -738,6 +742,8 @@ function createTables() {
         defunct_cost REAL DEFAULT 0,
         misc_expense REAL DEFAULT 0,
         misc_description TEXT,
+        misc_expense_2 REAL DEFAULT 0,
+        misc_description_2 TEXT,
         total_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -759,6 +765,8 @@ function createTables() {
         trip_amount REAL DEFAULT 0,
         misc_expense REAL DEFAULT 0,
         misc_description TEXT,
+        misc_expense_2 REAL DEFAULT 0,
+        misc_description_2 TEXT,
         total_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -887,6 +895,37 @@ function createTables() {
         UNIQUE(sale_month, sale_year)
     );
     `);
+
+    // =====================================================
+    // SCHEMA MIGRATIONS - Add new columns to existing tables
+    // Each ALTER TABLE is wrapped in try/catch so it's idempotent
+    // (duplicate column errors are silently ignored)
+    // =====================================================
+    const migrations = [
+        // Misc expense 2 columns for excavator
+        `ALTER TABLE excavator_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
+        `ALTER TABLE excavator_operation ADD COLUMN misc_description_2 TEXT`,
+        // Misc expense 2 columns for loader
+        `ALTER TABLE loader_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
+        `ALTER TABLE loader_operation ADD COLUMN misc_description_2 TEXT`,
+        // Misc expense 2 columns for dumper
+        `ALTER TABLE dumper_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
+        `ALTER TABLE dumper_operation ADD COLUMN misc_description_2 TEXT`,
+        // Generator: fuel consumption rate per hour
+        `ALTER TABLE generator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
+        // Expense categories: category_type for sub-categories
+        `ALTER TABLE expense_categories ADD COLUMN category_type TEXT DEFAULT 'MAIN'`,
+        // Monthly production summary: allowance_percent for monthly-level allowance deduction
+        `ALTER TABLE monthly_production_summary ADD COLUMN allowance_percent REAL DEFAULT 0`,
+    ];
+
+    migrations.forEach(sql => {
+        try {
+            db.run(sql);
+        } catch (e) {
+            // Column already exists - ignore
+        }
+    });
 }
 
 module.exports.createTables = createTables;

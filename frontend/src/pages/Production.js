@@ -6,10 +6,11 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 
 const Production = () => {
-  const { dailyProductions, addDailyProduction, saveMonthlyProduction, monthlyProductionSummaries } = useData();
+  const { dailyProductions, addDailyProduction, updateDailyProduction, deleteDailyProduction, saveMonthlyProduction, monthlyProductionSummaries } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [editingProductionId, setEditingProductionId] = useState(null);
 
   // Monthly Sales Form State
   const [salesData, setSalesData] = useState({
@@ -18,6 +19,7 @@ const Production = () => {
     sold_cft: '',
     sold_amount: '',
     approx_cost: '',
+    allowance_percent: '15',
   });
   
   // New form with proper production workflow
@@ -25,20 +27,17 @@ const Production = () => {
     production_date: '',
     gravel_cft: '',           // Input: Gravel in cubic feet
     clay_dust_percent: '33.33', // Default 33.33% deduction for clay & stone dust
-    allowance_percent: '15',    // Default 15% allowance/margin
     notes: '',
   });
 
   // Auto-calculated values
   const gravelCft = parseFloat(formData.gravel_cft) || 0;
   const clayDustPercent = parseFloat(formData.clay_dust_percent) || 33.33;
-  const allowancePercent = parseFloat(formData.allowance_percent) || 15;
   
-  // Calculations matching the Excel workflow
+  // Calculations matching the Excel workflow (allowance moved to monthly level)
   const clayDustCft = (gravelCft * clayDustPercent / 100);
   const aggregateProduced = gravelCft - clayDustCft;
-  const allowanceDeduction = (aggregateProduced * allowancePercent / 100);
-  const netAggregateCft = aggregateProduced - allowanceDeduction;
+  const netAggregateCft = aggregateProduced;
 
   // Form validation
   const isFormValid = formData.production_date && formData.gravel_cft && gravelCft > 0;
@@ -54,7 +53,6 @@ const Production = () => {
       production_date: '',
       gravel_cft: '',
       clay_dust_percent: '33.33',
-      allowance_percent: '15',
       notes: '',
     });
     setError('');
@@ -74,8 +72,8 @@ const Production = () => {
         clay_dust_percent: clayDustPercent,
         clay_dust_cft: clayDustCft,
         aggregate_produced: aggregateProduced,
-        allowance_percent: allowancePercent,
-        allowance_cft: allowanceDeduction,
+        allowance_percent: 0,
+        allowance_cft: 0,
         net_aggregate_cft: netAggregateCft,
         notes: formData.notes || '',
       });
@@ -138,7 +136,12 @@ const Production = () => {
     // Round total production to nearest integer to match the UI display and prevent
     // floating point confusion (e.g., -0.000...1 stock resulting in negative value).
     // Users expect "what they see is what is calculated".
-    const totalProduced = Math.round(totalProducedRaw);
+    const totalProducedRaw2 = Math.round(totalProducedRaw);
+
+    // Apply monthly allowance deduction
+    const allowancePercent = parseFloat(salesData.allowance_percent) || 0;
+    const allowanceDeduction = Math.round(totalProducedRaw2 * allowancePercent / 100);
+    const totalProduced = totalProducedRaw2 - allowanceDeduction;
 
     const soldCft = parseFloat(salesData.sold_cft) || 0;
     const soldAmount = parseFloat(salesData.sold_amount) || 0;
@@ -155,6 +158,9 @@ const Production = () => {
 
     return {
       monthKey,
+      totalProducedRaw: totalProducedRaw2,
+      allowancePercent,
+      allowanceDeduction,
       totalProduced,
       remainingStock,
       perCftCostSold,
@@ -188,6 +194,7 @@ const Production = () => {
         sold_cft: parseFloat(salesData.sold_cft),
         sold_amount: parseFloat(salesData.sold_amount),
         approx_cost: parseFloat(salesData.approx_cost),
+        allowance_percent: parseFloat(salesData.allowance_percent) || 0,
         // Important: Save the current total production so the snapshot is consistent
         net_aggregate_cft: salesCalculations.totalProduced
       });
@@ -200,6 +207,65 @@ const Production = () => {
     }
   };
 
+  // Edit production entry - populate form with existing data
+  const handleEditProduction = (prod) => {
+    setEditingProductionId(prod.id);
+    setFormData({
+      production_date: prod.production_date,
+      gravel_cft: prod.gravel_cft || '',
+      clay_dust_percent: prod.clay_dust_percent || '33.33',
+      notes: prod.notes || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Update production entry
+  const handleUpdateProduction = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      await updateDailyProduction(editingProductionId, {
+        production_date: formData.production_date,
+        gravel_cft: gravelCft,
+        clay_dust_percent: clayDustPercent,
+        clay_dust_cft: clayDustCft,
+        aggregate_produced: aggregateProduced,
+        allowance_percent: 0,
+        allowance_cft: 0,
+        net_aggregate_cft: netAggregateCft,
+        notes: formData.notes || '',
+      });
+      setSuccess('Production entry updated successfully!');
+      setEditingProductionId(null);
+      setTimeout(() => {
+        resetForm();
+      }, 2000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error updating production');
+      setIsSubmitting(false);
+    }
+  };
+
+  // Delete production entry
+  const handleDeleteProduction = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this production entry?')) return;
+    try {
+      await deleteDailyProduction(id);
+      setSuccess('Production entry deleted.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error deleting production');
+    }
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingProductionId(null);
+    resetForm();
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Daily Production</h1>
@@ -208,7 +274,7 @@ const Production = () => {
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <h2 className="text-lg font-medium text-emerald-700 mb-4 flex items-center gap-2">
           <span className="w-2 h-2 bg-emerald-600 rounded-full"></span>
-          Add Daily Aggregate Production
+          {editingProductionId ? 'Edit Daily Aggregate Production' : 'Add Daily Aggregate Production'}
         </h2>
 
         {/* Process Flow Diagram */}
@@ -224,18 +290,6 @@ const Production = () => {
               <div className="font-medium text-amber-800">- Clay/Dust ({clayDustPercent}%)</div>
               <div className="text-2xl font-bold text-amber-600">-{clayDustCft.toFixed(0)}</div>
               <div className="text-xs text-amber-600">CFT</div>
-            </div>
-            <div className="text-emerald-400">→</div>
-            <div className="text-center">
-              <div className="font-medium text-blue-800">Aggregate Produced</div>
-              <div className="text-2xl font-bold text-blue-600">{aggregateProduced.toFixed(0)}</div>
-              <div className="text-xs text-blue-600">CFT</div>
-            </div>
-            <div className="text-emerald-400">→</div>
-            <div className="text-center">
-              <div className="font-medium text-red-800">- Allowance ({allowancePercent}%)</div>
-              <div className="text-2xl font-bold text-red-600">-{allowanceDeduction.toFixed(0)}</div>
-              <div className="text-xs text-red-600">CFT</div>
             </div>
             <div className="text-emerald-400">→</div>
             <div className="text-center bg-green-100 p-2 rounded-lg">
@@ -258,9 +312,9 @@ const Production = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={editingProductionId ? handleUpdateProduction : handleSubmit} className="space-y-4">
           {/* Main Input Row */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Label htmlFor="production_date">Date *</Label>
               <Input
@@ -303,21 +357,6 @@ const Production = () => {
                 className="bg-amber-50"
               />
             </div>
-
-            <div>
-              <Label htmlFor="allowance_percent">Allowance & Margin (%)</Label>
-              <Input
-                type="number"
-                id="allowance_percent"
-                name="allowance_percent"
-                value={formData.allowance_percent}
-                onChange={handleChange}
-                step="0.01"
-                min="0"
-                max="100"
-                className="bg-red-50"
-              />
-            </div>
           </div>
 
           {/* Notes */}
@@ -334,6 +373,11 @@ const Production = () => {
           </div>
 
           <div className="flex justify-end gap-2">
+            {editingProductionId && (
+              <Button type="button" variant="secondary" onClick={handleCancelEdit}>
+                Cancel Edit
+              </Button>
+            )}
             <Button type="button" variant="secondary" onClick={resetForm}>
               Reset
             </Button>
@@ -342,7 +386,7 @@ const Production = () => {
               disabled={!isFormValid || isSubmitting}
               submitted={success !== ''}
             >
-              {isSubmitting && !success ? 'Saving...' : 'Save Production'}
+              {isSubmitting && !success ? 'Saving...' : editingProductionId ? 'Update Production' : 'Save Production'}
             </Button>
           </div>
         </form>
@@ -356,7 +400,7 @@ const Production = () => {
         </h2>
 
         <form onSubmit={handleSalesSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Month/Year Selection */}
             <div>
               <Label>Month / Year</Label>
@@ -389,6 +433,22 @@ const Production = () => {
                   ))}
                 </Select>
               </div>
+            </div>
+
+            {/* Allowance */}
+            <div>
+              <Label htmlFor="allowance_percent">Allowance & Margin (%)</Label>
+              <Input
+                type="number"
+                name="allowance_percent"
+                value={salesData.allowance_percent}
+                onChange={handleSalesChange}
+                placeholder="15"
+                step="0.01"
+                min="0"
+                max="100"
+                className="bg-red-50 border-red-200"
+              />
             </div>
 
             {/* Sales Inputs */}
@@ -441,11 +501,27 @@ const Production = () => {
           <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wider">
             Stock & Value Analysis ({salesData.month}/{salesData.year})
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 text-center">
+          <div className="grid grid-cols-2 lg:grid-cols-7 gap-4 text-center">
             
             <div className="bg-white p-3 rounded shadow-sm border border-gray-100">
-              <div className="text-xs text-gray-500 mb-1">Total Production (Net)</div>
+              <div className="text-xs text-gray-500 mb-1">Aggregate Produced</div>
               <div className="text-lg font-bold text-gray-800">
+                {salesCalculations.totalProducedRaw.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-xs text-gray-400">CFT</div>
+            </div>
+
+            <div className="bg-red-50 p-3 rounded shadow-sm border border-red-100">
+              <div className="text-xs text-red-600 mb-1">Allowance ({salesCalculations.allowancePercent}%)</div>
+              <div className="text-lg font-bold text-red-600">
+                -{salesCalculations.allowanceDeduction.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-xs text-red-400">CFT</div>
+            </div>
+
+            <div className="bg-white p-3 rounded shadow-sm border border-green-200">
+              <div className="text-xs text-green-600 mb-1">Net Production</div>
+              <div className="text-lg font-bold text-green-700">
                 {salesCalculations.totalProduced.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
               <div className="text-xs text-gray-400">CFT</div>
@@ -588,7 +664,8 @@ const Production = () => {
                             year: summary.summary_year.toString(),
                             sold_cft: summary.sold_at_site_cft || 0,
                             sold_amount: summary.sold_at_site_amount || 0,
-                            approx_cost: summary.approx_per_cft_cost || 0
+                            approx_cost: summary.approx_per_cft_cost || 0,
+                            allowance_percent: summary.allowance_percent ?? 15
                           });
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
@@ -617,15 +694,15 @@ const Production = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-emerald-600 uppercase">Gravel (CFT)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-amber-600 uppercase">Dust</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-red-600 uppercase">Allow.</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-green-700 uppercase">Net (CFT)</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {dailyProductions.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     No production records yet
                   </td>
                 </tr>
@@ -642,14 +719,25 @@ const Production = () => {
                       <td className="px-4 py-3 text-sm text-right text-amber-600">
                         -{(prod.clay_dust_cft || 0).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-red-600">
-                        -{(prod.allowance_cft || 0).toLocaleString()}
-                      </td>
                       <td className="px-4 py-3 text-sm text-right font-bold text-green-700">
                         {(prod.net_aggregate_cft || 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate" title={prod.notes || ''}>
                         {prod.notes || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
+                        <button
+                          onClick={() => handleEditProduction(prod)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduction(prod.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))

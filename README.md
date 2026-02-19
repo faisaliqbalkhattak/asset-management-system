@@ -1,86 +1,97 @@
 # Process Management System
 
-Offline desktop application for managing plant/quarry operations including equipment, vehicles, production tracking, expenses, and profit sharing.
+An offline desktop application for managing plant and quarry operations — equipment, vehicles, daily production, expenses, and profit distribution.
 
-## Tech Stack (SERN)
+## Tech Stack
 
-- **S** - SQLite (better-sqlite3) - Offline embedded database
-- **E** - Express.js - REST API server
-- **R** - React (to be added) - Frontend UI
-- **N** - Node.js - Runtime environment
-- **Electron** - Desktop wrapper
+| Layer     | Technology                     |
+|-----------|--------------------------------|
+| Database  | SQLite (better-sqlite3)        |
+| API       | Express.js                     |
+| Frontend  | React, Tailwind CSS            |
+| Runtime   | Node.js                        |
+| Desktop   | Electron                       |
 
 ## Features
 
-- **Equipment Management** - Track generators, excavators
-- **Vehicle/Dumper Tracking** - Daily trips, gravel/clay amounts
-- **Loader Operations** - Rent, fuel, defunct hours
-- **Material Purchases** - Blasting materials, explosives
-- **Employee Salaries** - Monthly payroll tracking
-- **General Expenses** - Langar, plant expenses, misc
-- **Daily Production** - Gravel to aggregate conversion
-- **Aggregate Classification** - Size breakdown (10mm-50mm)
-- **Monthly Summaries** - Auto-calculated expense totals
-- **Profit Sharing** - Partner distribution (50/50)
+| Module | Description |
+|--------|-------------|
+| **Master Data** | Register equipment (generators, excavators, loaders, dumpers), employees, and expense categories. All downstream reports auto-update when masters change. |
+| **Daily Entries** | Tabbed forms for generators, excavators, loaders, dumpers, blasting material, langar, plant expenses, misc expenses, and salaries. |
+| **Production** | Daily gravel-to-aggregate tracking with clay/dust deduction. Monthly allowance, sales, and stock valuation management. Edit and delete past entries. |
+| **Monthly Summary** | Dynamic expense table with columns generated from registered equipment. Misc expenses tracked separately and excluded from totals. |
+| **Yearly Summary** | Annual expense breakdown by month with quarterly analysis. Categories driven entirely by master data. |
+| **Profit Sharing** | Partner profit distribution based on revenue (sales + stock value) minus total operational expenses. |
+| **Transactions** | Unified view of all entries across the system with filtering, editing, and deletion. |
 
-## Installation & Running
+## Quick Start
 
-The project is structured into three main components: `backend`, `frontend`, and `electron`.
+### Prerequisites
 
-### 1. Install Dependencies
-You need to install dependencies for each component.
+- Node.js v18+
+- npm
+
+### Install
 
 ```bash
 # Backend
-cd backend
-npm install
+cd backend && npm install
 
 # Frontend
-cd ../frontend
-npm install
+cd ../frontend && npm install
 
-# Electron
-cd ../electron
-npm install
+# Electron (desktop wrapper)
+cd ../electron && npm install
 ```
 
-### 2. Initialize Database
-Initialize the database before running the app for the first time.
+### Initialize Database
 
 ```bash
 cd backend
 npm run db:init
 ```
 
-### 3. Start the Application
-To run the application in development mode:
+### Run (Development)
 
 ```bash
 cd electron
 npm start
 ```
-This will launch the Electron window which starts the backend server and loads the frontend.
 
-### 4. Build Installer
-To create a distributable installer (exe):
+### Build Installer
 
 ```bash
 cd electron
 npm run dist
 ```
-The output will be found in the `electron/dist` folder.
+
+The packaged application will appear in `electron/dist/`.
 
 ## Project Structure
 
 ```
-development/
-├── backend/             # Express.js Server & SQLite Database
-│   ├── sqlite/          # Database logic
-│   ├── server/          # API Routes
-│   └── ...
-├── frontend/            # React User Interface
-├── electron/            # Electron Desktop Wrapper
-│   ├── main.js          # Main process
-│   └── package.json     # Electron build config
-└── _docs/               # Documentation
+├── backend/               Express.js API + SQLite database
+│   ├── sqlite/            Repositories, controllers, routes, seeds
+│   ├── config/            Environment configuration
+│   ├── middlewares/        Error handling, validation
+│   └── scripts/           Database initialization utilities
+├── frontend/              React + Tailwind CSS
+│   └── src/
+│       ├── pages/         DailyEntries, Production, MonthlySummary, YearlySummary, Transactions
+│       ├── components/    Reusable UI (Toast, Input, Select, Button, etc.)
+│       ├── context/       DataContext — global state management
+│       └── services/      API service layer
+├── electron/              Electron desktop shell
+│   ├── main.js            Main process — starts backend, creates window
+│   └── preload.js         Context isolation bridge
+├── README.md
+└── USER_MANUAL.md
 ```
+
+## Documentation
+
+- [User Manual](USER_MANUAL_V2.md) — complete guide to every module and workflow
+
+## License
+
+ISC
