@@ -35,8 +35,7 @@
     "win": {
       "target": "nsis",
       "verifyUpdateCodeSignature": false,
-      "forceCodeSigning": false,
-      "icon": "../build/icon.ico"
+      "forceCodeSigning": false
     },
     "nsis": {
       "oneClick": false,
