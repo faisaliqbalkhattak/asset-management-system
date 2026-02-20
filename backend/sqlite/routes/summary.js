@@ -108,8 +108,22 @@ router.get('/profit/:year/:month', (req, res, next) => {
 // POST/PUT upsert profit sharing
 router.post('/profit', (req, res, next) => {
     try {
-        const { period_month, period_year, ...data } = req.body;
-        const profitSharing = profitRepo.upsert(period_month, period_year, data);
+        const body = req.body;
+        // Support both frontend field names (month/year) and legacy (period_month/period_year)
+        const month = body.month || body.period_month;
+        const year = parseInt(body.year || body.period_year);
+
+        // Map frontend field names to database column names
+        const data = {
+            actual_amount: parseFloat(body.sold_amount || body.actual_amount) || 0,
+            stock_at_site_cft: parseFloat(body.stock_cft || body.stock_at_site_cft) || 0,
+            estimated_rate: parseFloat(body.cost_per_cft || body.estimated_rate) || 0,
+            actual_expenses: parseFloat(body.total_expenses || body.actual_expenses) || 0,
+            partner1_share_percentage: parseFloat(body.partner_a_share || body.partner1_share_percentage) || 50,
+            partner2_share_percentage: parseFloat(body.partner_b_share || body.partner2_share_percentage) || 50,
+        };
+
+        const profitSharing = profitRepo.upsert(month, year, data);
         res.status(201).json({ success: true, data: profitSharing });
     } catch (error) {
         next(error);

@@ -27,7 +27,7 @@ const YearlySummary = () => {
     dumperOperations,
     dumperMiscExpenses,
     salaries,
-    dailyProductions,
+    monthlyProductionSummaries,
   } = useData();
 
   const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear().toString());
@@ -67,8 +67,12 @@ const YearlySummary = () => {
       ...miscExpenses,
       ...dumperOperations,
       ...salaries,
-      ...dailyProductions,
     ];
+
+    // Also include monthly production summaries for year detection
+    (monthlyProductionSummaries || []).forEach(s => {
+      if (s.summary_year) years.add(s.summary_year.toString());
+    });
     
     allData.forEach((item) => {
       const date = item.operation_date || item.trip_date || item.expense_date || 
@@ -83,7 +87,7 @@ const YearlySummary = () => {
     }
     return Array.from(years).sort((a, b) => b - a);
   }, [generatorOperations, excavatorOperations, loaderOperations, blastingMaterials,
-      langarExpenses, plantExpenses, miscExpenses, dumperOperations, salaries, dailyProductions]);
+      langarExpenses, plantExpenses, miscExpenses, dumperOperations, salaries, monthlyProductionSummaries]);
 
   // Calculate yearly summary by month
   const monthlySummary = useMemo(() => {
@@ -172,10 +176,12 @@ const YearlySummary = () => {
         })
         .reduce((sum, s) => sum + (s.net_salary || 0), 0);
 
-      // Production
-      const production = dailyProductions
-        .filter((p) => filterByMonth(p.production_date))
-        .reduce((sum, p) => sum + (p.net_aggregate_cft || 0), 0);
+      // Revenue from monthly production summaries (sold amount + stock value)
+      const FULL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const matchingSummary = (monthlyProductionSummaries || []).find(s =>
+        s.summary_year == year && s.summary_month === FULL_MONTH_NAMES[index]
+      );
+      const revenue = matchingSummary ? (matchingSummary.total_cost || 0) : 0;
 
       // Sum all dumper trip amounts
       const dumperTotal = Object.keys(dumperData)
@@ -205,14 +211,14 @@ const YearlySummary = () => {
         plant_exp,
         human_res,
         misc_exp,
-        production,
+        revenue,
         total,
         total_misc,
       };
     });
   }, [selectedYear, generatorOperations, excavatorOperations, loaderOperations, 
       dumperOperations, dumperMiscExpenses, blastingMaterials, langarExpenses, 
-      plantExpenses, miscExpenses, salaries, dailyProductions, registeredDumpers]);
+      plantExpenses, miscExpenses, salaries, monthlyProductionSummaries, registeredDumpers]);
 
   // Calculate yearly totals
   const yearlyTotals = useMemo(() => {
@@ -276,19 +282,17 @@ const YearlySummary = () => {
           <div className="text-2xl font-bold text-gray-900">{formatCurrency(yearlyTotals.total)}</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Net Production</div>
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(yearlyTotals.production)} CFT</div>
+          <div className="text-sm text-gray-500">Total Revenue</div>
+          <div className="text-2xl font-bold text-green-600">{formatCurrency(yearlyTotals.revenue)}</div>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="text-sm text-amber-700">Total Misc (Reference)</div>
           <div className="text-2xl font-bold text-amber-700">{formatCurrency(yearlyTotals.total_misc)}</div>
         </div>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-          <div className="text-sm text-emerald-700">Cost per CFT</div>
-          <div className="text-2xl font-bold text-emerald-700">
-            {yearlyTotals.production > 0 
-              ? (yearlyTotals.total / yearlyTotals.production).toFixed(2)
-              : '-'}
+        <div className={`border rounded-lg p-4 ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`text-sm ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>Net Profit</div>
+          <div className={`text-2xl font-bold ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+            {formatCurrency((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0))}
           </div>
         </div>
       </div>
@@ -377,7 +381,8 @@ const YearlySummary = () => {
                   <th key={cat.key} className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{cat.shortLabel}</th>
                 ))}
                 <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-emerald-600">Total</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-green-700 uppercase bg-green-50">Prod</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-green-700 uppercase bg-green-50">Revenue</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase bg-emerald-50">Profit</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -410,7 +415,10 @@ const YearlySummary = () => {
                     {formatCurrency(row.total)}
                   </td>
                   <td className="px-3 py-2 text-sm text-right text-green-700 bg-green-50 font-medium">
-                    {formatCurrency(row.production)}
+                    {formatCurrency(row.revenue)}
+                  </td>
+                  <td className={`px-3 py-2 text-sm text-right font-medium bg-emerald-50 ${(row.revenue - row.total) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {formatCurrency(row.revenue - row.total)}
                   </td>
                 </tr>
               ))}
@@ -444,7 +452,10 @@ const YearlySummary = () => {
                   {formatCurrency(yearlyTotals.total)}
                 </td>
                 <td className="px-3 py-3 text-sm text-right text-green-800 bg-green-100 font-bold">
-                  {formatCurrency(yearlyTotals.production)}
+                  {formatCurrency(yearlyTotals.revenue)}
+                </td>
+                <td className={`px-3 py-3 text-sm text-right font-bold bg-emerald-100 ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'text-emerald-800' : 'text-red-700'}`}>
+                  {formatCurrency((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0))}
                 </td>
               </tr>
             </tfoot>
@@ -466,7 +477,8 @@ const YearlySummary = () => {
           {[0, 1, 2, 3].map((q) => {
             const quarterMonths = monthlySummary.slice(q * 3, (q + 1) * 3);
             const quarterTotal = quarterMonths.reduce((sum, m) => sum + m.total, 0);
-            const quarterProduction = quarterMonths.reduce((sum, m) => sum + m.production, 0);
+            const quarterRevenue = quarterMonths.reduce((sum, m) => sum + m.revenue, 0);
+            const quarterProfit = quarterRevenue - quarterTotal;
             const quarterNames = ['Q1 (Jan-Mar)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dec)'];
             
             return (
@@ -478,13 +490,13 @@ const YearlySummary = () => {
                     <span className="font-bold text-gray-900">{formatCurrency(quarterTotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Production</span>
-                    <span className="font-bold text-green-600">{formatCurrency(quarterProduction)} CFT</span>
+                    <span className="text-gray-600">Revenue</span>
+                    <span className="font-bold text-green-600">{formatCurrency(quarterRevenue)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Cost/CFT</span>
-                    <span className="font-bold text-emerald-700">
-                      {quarterProduction > 0 ? (quarterTotal / quarterProduction).toFixed(2) : '-'}
+                    <span className="text-gray-600">Net Profit</span>
+                    <span className={`font-bold ${quarterProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {formatCurrency(quarterProfit)}
                     </span>
                   </div>
                 </div>
