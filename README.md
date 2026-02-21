@@ -24,6 +24,29 @@ An offline desktop application for managing plant and quarry operations — equi
 | **Profit Sharing** | Partner profit distribution based on revenue (sales + stock value) minus total operational expenses. |
 | **Transactions** | Unified view of all entries across the system with filtering, editing, and deletion. |
 
+## Screenshots
+
+### Dashboard
+![Dashboard](images/show%20the%20summary%20of%20how%20nuch%20data%20had%20you%20entered%20and%20in%20which%20table.png)
+
+### Master Data — Register Assets
+![Master Data](images/master%20table.%20the%20assets%20you%20want%20to%20manage.png)
+
+### Daily Entries
+![Daily Entries](images/daily%20entry.png)
+
+### Production Tracking
+![Production](images/productions.png)
+
+### Monthly Summary
+![Monthly Summary](images/monthly%20summary.png)
+
+### Yearly Summary
+![Yearly Summary](images/yearly%20summary%20for%20the%20selected%20year.png)
+
+### Transactions
+![Transactions](images/see%20the%20entries%20you%20had%20made.png)
+
 ## Quick Start
 
 ### Prerequisites
