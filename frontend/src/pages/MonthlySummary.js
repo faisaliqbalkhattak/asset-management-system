@@ -269,7 +269,7 @@ const MonthlySummary = () => {
         equipMiscTotal += d[`${ec.key}_misc`] || 0;
       });
       d.total_misc = equipMiscTotal + dumperMiscTotal;
-      d.balance = d.total + d.total_misc;
+      d.balance = d.total - d.total_misc;
       d.grand_total = d.balance;
     });
 
@@ -521,7 +521,7 @@ const MonthlySummary = () => {
               <div className="text-2xl font-bold text-amber-700">{formatCurrency(grandTotals.total_misc)}</div>
             </div>
             <div>
-              <div className="text-sm text-blue-600">Balance (Total + Misc)</div>
+              <div className="text-sm text-blue-600">Balance (Total − Misc)</div>
               <div className="text-2xl font-bold text-blue-800">{formatCurrency(grandTotals.balance)}</div>
             </div>
             <div>

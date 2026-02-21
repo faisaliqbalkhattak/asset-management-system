@@ -37,16 +37,14 @@ function createWindow() {
 }
 
 function startBackend() {
-  const isDev = process.env.NODE_ENV === 'development';
+  // Locate app.js - try multiple paths for different environments
+  const resourcesPath = process.resourcesPath || path.join(__dirname, '..');
   
-  // Locate app.js - try multiple paths for different packaging strategies
   const pathsToTry = [
+    // electron-builder extraResources: resources/backend/app.js
+    path.join(resourcesPath, 'backend', 'app.js'),
     // Dev: electron/../backend/app.js
     path.join(__dirname, '..', 'backend', 'app.js'),
-    // electron-builder: resources/app/backend/app.js  
-    path.join(__dirname, 'backend', 'app.js'),
-    // electron-packager --extra-resource: resources/backend/app.js
-    path.join(process.resourcesPath || __dirname, 'backend', 'app.js'),
   ];
   
   let backendPath;
@@ -67,9 +65,10 @@ function startBackend() {
 
   // Locate frontend build folder to pass to backend
   const frontendPaths = [
+    // electron-builder extraResources: resources/frontend-build/
+    path.join(resourcesPath, 'frontend-build'),
+    // Dev: electron/../frontend/build
     path.join(__dirname, '..', 'frontend', 'build'),
-    path.join(__dirname, 'frontend', 'build'),
-    path.join(process.resourcesPath || __dirname, 'build'),
   ];
   let frontendBuildPath = '';
   for (const p of frontendPaths) {

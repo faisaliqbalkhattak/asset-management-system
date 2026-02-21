@@ -557,31 +557,46 @@ const ProfitSharing = () => {
               ) : (
                 [...profitSharing]
                   .sort((a, b) => {
-                    if (b.year !== a.year) return b.year - a.year;
-                    return MONTH_NAMES.indexOf(b.month) - MONTH_NAMES.indexOf(a.month);
+                    const yearA = a.period_year || a.year;
+                    const yearB = b.period_year || b.year;
+                    if (yearB !== yearA) return yearB - yearA;
+                    return MONTH_NAMES.indexOf(b.period_month || b.month) - MONTH_NAMES.indexOf(a.period_month || a.month);
                   })
-                  .map((ps) => (
+                  .map((ps) => {
+                    const month = ps.period_month || ps.month;
+                    const year = ps.period_year || ps.year;
+                    const revenue = ps.total_income || ps.total_revenue || 0;
+                    const expenses = ps.actual_expenses || ps.total_expenses || 0;
+                    const netProfit = ps.profit || ps.net_profit || (revenue - expenses);
+                    const partnerAAmount = ps.partner1_share_amount || ps.partner_a_amount || 0;
+                    const partnerAShare = ps.partner1_share_percentage || ps.partner_a_share || 50;
+                    const partnerBAmount = ps.partner2_share_amount || ps.partner_b_amount || 0;
+                    const partnerBShare = ps.partner2_share_percentage || ps.partner_b_share || 50;
+                    const production = ps.stock_at_site_cft || ps.net_aggregate_cft || 0;
+                    const costPerCft = ps.estimated_rate || ps.cost_per_cft || 0;
+                    return (
                     <tr key={ps.id} className="hover:bg-emerald-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{ps.month} {ps.year}</td>
-                      <td className="px-4 py-3 text-sm text-right text-green-700">{formatCurrency(ps.total_revenue)}</td>
-                      <td className="px-4 py-3 text-sm text-right text-red-700">{formatCurrency(ps.total_expenses)}</td>
-                      <td className={`px-4 py-3 text-sm text-right font-bold ${ps.net_profit >= 0 ? 'text-emerald-700' : 'text-orange-700'}`}>
-                        {formatCurrency(ps.net_profit)}
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{month} {year}</td>
+                      <td className="px-4 py-3 text-sm text-right text-green-700">{formatCurrency(revenue)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-red-700">{formatCurrency(expenses)}</td>
+                      <td className={`px-4 py-3 text-sm text-right font-bold ${netProfit >= 0 ? 'text-emerald-700' : 'text-orange-700'}`}>
+                        {formatCurrency(netProfit)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-blue-700 font-medium">
-                        {formatCurrency(ps.partner_a_amount)} ({ps.partner_a_share}%)
+                        {formatCurrency(partnerAAmount)} ({partnerAShare}%)
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-purple-700 font-medium">
-                        {formatCurrency(ps.partner_b_amount)} ({ps.partner_b_share}%)
+                        {formatCurrency(partnerBAmount)} ({partnerBShare}%)
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-600">
-                        {formatCurrency(ps.net_aggregate_cft)} CFT
+                        {formatCurrency(production)} CFT
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-600">
-                        {ps.cost_per_cft?.toFixed(2) || '-'}
+                        {costPerCft?.toFixed(2) || '-'}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
               )}
             </tbody>
           </table>
