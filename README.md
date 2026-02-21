@@ -1,4 +1,4 @@
-# Process Management System
+# Asset Management System
 
 An offline desktop application for managing plant and quarry operations — equipment, vehicles, daily production, expenses, and profit distribution.
 

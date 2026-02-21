@@ -1,5 +1,5 @@
 /**
- * Process Management System - Main Application
+ * Asset Management System - Main Application
  * =============================================
  * Express server with SQLite database
  * 
@@ -126,7 +126,7 @@ async function startServer() {
 
             res.json({
                 success: true,
-                message: 'Process Management System API',
+                message: 'Asset Management System API',
                 version: '1.0.0',
                 environment: NODE_ENV,
                 documentation: '/api/health'

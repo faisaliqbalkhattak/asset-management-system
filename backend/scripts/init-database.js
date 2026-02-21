@@ -11,7 +11,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env.development.lo
 const { initializeDatabase, closeDatabase, createTables, saveDatabase, config } = require('../sqlite/db');
 
 console.log('========================================');
-console.log('Process Management System - DB Setup');
+console.log('Asset Management System - DB Setup');
 console.log('========================================\n');
 
 async function main() {

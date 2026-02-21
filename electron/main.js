@@ -10,7 +10,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 900,
-    title: "Process Management System",
+    title: "Asset Management System",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

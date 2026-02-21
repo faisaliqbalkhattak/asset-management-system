@@ -1,7 +1,7 @@
 {
-    "name": "process-management-system",
+    "name": "asset-management-system",
     "version": "1.0.0",
-    "description": "Aggregate plant process management system with SQLite database - SERN Stack",
+    "description": "Aggregate plant asset management system with SQLite database - SERN Stack",
     "main": "app.js",
     "scripts": {
         "start": "node app.js",
@@ -13,7 +13,7 @@
         "db:inspect": "node scripts/inspect_db.js"
     },
     "keywords": [
-        "process-management",
+        "asset-management",
         "sqlite",
         "express",
         "nodejs",

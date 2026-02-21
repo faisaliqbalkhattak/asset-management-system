@@ -19,7 +19,7 @@ let userDataDir;
 // Helper to find the database directory
 // Places the DB one level UP from the install/exe folder so
 // uninstalling the app does NOT delete the database file.
-// Example: If installed at .../Programs/Process Management System/
+// Example: If installed at .../Programs/Asset Management System/
 //          DB goes to        .../Programs/DO_NOT_DELETE_management_system_data.db
 const getDbDir = () => {
     // Check if we're in a pkg environment
@@ -30,7 +30,7 @@ const getDbDir = () => {
     
     // Check if we're in Electron production
     if (process.versions.electron && process.env.NODE_ENV === 'production') {
-        // process.execPath = .../Process Management System/MyApp.exe
+        // process.execPath = .../Asset Management System/MyApp.exe
         // Go one level up to the parent of the install folder
         const parentDir = path.dirname(path.dirname(process.execPath));
         try {
@@ -51,8 +51,8 @@ userDataDir = getDbDir();
 // Fallback to AppData if we couldn't get a writable parent path
 if (!userDataDir) {
      userDataDir = process.env.APPDATA 
-    ? path.join(process.env.APPDATA, 'ProcessManagementSystemData')
-    : path.join(process.env.HOME || process.env.USERPROFILE, '.process-management-system-data');
+    ? path.join(process.env.APPDATA, 'AssetManagementSystemData')
+    : path.join(process.env.HOME || process.env.USERPROFILE, '.asset-management-system-data');
     console.log('Using AppData fallback for database storage.');
 }
 
@@ -68,8 +68,8 @@ try {
 } catch (error) {
   console.error('Failed to create data directory. Falling back to AppData.', error);
   userDataDir = process.env.APPDATA 
-    ? path.join(process.env.APPDATA, 'ProcessManagementSystemData')
-    : path.join(process.env.HOME || process.env.USERPROFILE, '.process-management-system-data');
+    ? path.join(process.env.APPDATA, 'AssetManagementSystemData')
+    : path.join(process.env.HOME || process.env.USERPROFILE, '.asset-management-system-data');
 }
 
 // =====================================================
