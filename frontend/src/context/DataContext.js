@@ -72,19 +72,19 @@ export const DataProvider = ({ children }) => {
   // Expense categories
   const [expenseCategories, setExpenseCategories] = useState([]);
 
-  // Computed: typed category lists for dropdown items
+  // Computed: category lists for dropdown items - all use master expense categories
+  const allCategoryNames = useMemo(() => {
+    return expenseCategories.map(c => c.category_name).filter(Boolean);
+  }, [expenseCategories]);
   const blastingItems = useMemo(() => {
-    const items = expenseCategories.filter(c => c.category_type === 'BLASTING_ITEM').map(c => c.category_name);
-    return items.length > 0 ? items : ['Gelatin', 'Detonator', 'Fuse Wire', 'Safety Fuse', 'Blasting Powder', 'Other'];
-  }, [expenseCategories]);
+    return allCategoryNames.length > 0 ? allCategoryNames : ['Gelatin', 'Detonator', 'Fuse Wire', 'Safety Fuse', 'Blasting Powder', 'Other'];
+  }, [allCategoryNames]);
   const plantExpenseCategories = useMemo(() => {
-    const items = expenseCategories.filter(c => c.category_type === 'PLANT_EXPENSE').map(c => c.category_name);
-    return items.length > 0 ? items : ['Maintenance', 'Repair', 'Spare Parts', 'Electrical', 'Other'];
-  }, [expenseCategories]);
+    return allCategoryNames.length > 0 ? allCategoryNames : ['Maintenance', 'Repair', 'Spare Parts', 'Electrical', 'Other'];
+  }, [allCategoryNames]);
   const miscExpenseCategories = useMemo(() => {
-    const items = expenseCategories.filter(c => c.category_type === 'MISC_EXPENSE').map(c => c.category_name);
-    return items.length > 0 ? items : ['General', 'Transport', 'Office', 'Utility', 'Other'];
-  }, [expenseCategories]);
+    return allCategoryNames.length > 0 ? allCategoryNames : ['General', 'Transport', 'Office', 'Utility', 'Other'];
+  }, [allCategoryNames]);
 
   // eslint-disable-next-line no-unused-vars
   const [equipmentTypes, setEquipmentTypes] = useState(['GENERATOR', 'EXCAVATOR', 'LOADER', 'DUMPER']);
@@ -128,6 +128,7 @@ export const DataProvider = ({ children }) => {
         equipmentRes,
         expenseCategoriesRes,
         monthlySummaryRes,
+        profitSharingRes,
       ] = await Promise.all([
         api.generatorApi.getAll().catch(() => ({ data: [] })),
         api.excavatorApi.getAll().catch(() => ({ data: [] })),
@@ -145,6 +146,7 @@ export const DataProvider = ({ children }) => {
         api.equipmentApi.getAll().catch(() => ({ data: [] })),
         api.expenseCategoryApi.getAll().catch(() => ({ data: [] })),
         api.monthlyProductionApi.getAll().catch(() => ({ data: [] })),
+        api.profitSharingApi.getAll().catch(() => ({ data: [] })),
       ]);
 
       setGeneratorOperations(generatorRes.data || []);
@@ -163,6 +165,7 @@ export const DataProvider = ({ children }) => {
       setEquipment(equipmentRes.data || []);
       setExpenseCategories(expenseCategoriesRes.data || []);
       setMonthlyProductionSummaries(monthlySummaryRes.data || []);
+      setProfitSharing(profitSharingRes.data || []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -568,7 +571,18 @@ export const DataProvider = ({ children }) => {
 
   const saveProfitSharing = async (data) => {
     const res = await api.profitSharingApi.save(data);
-    return res.data;
+    const saved = res.data;
+    // Update local state: replace existing record for same month/year or add new
+    setProfitSharing(prev => {
+      const idx = prev.findIndex(p => p.period_month === saved.period_month && p.period_year === saved.period_year);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = saved;
+        return updated;
+      }
+      return [...prev, saved];
+    });
+    return saved;
   };
 
   // ============================================================
@@ -899,7 +913,6 @@ export const DataProvider = ({ children }) => {
     // Monthly Production Summary
     saveMonthlyProduction,
     getMonthlyProductionByMonth,
-    monthlyProductionSummaries,
 
     // Expense Summary
     calculateExpenseSummary,
