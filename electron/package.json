@@ -1,7 +1,7 @@
 {
-  "name": "process-management-system-desktop",
+  "name": "asset-management-system-desktop",
   "version": "1.0.0",
-  "description": "Process Management System - Offline Desktop App",
+  "description": "Asset Management System - Offline Desktop App",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "com.pms.app",
-    "productName": "Process Management System",
+    "productName": "Asset Management System",
     "files": [
       "main.js",
       "preload.js",

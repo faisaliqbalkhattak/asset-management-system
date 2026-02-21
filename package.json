@@ -1,7 +1,7 @@
 {
-  "name": "process-management-system-root",
+  "name": "asset-management-system-root",
   "version": "1.0.0",
-  "description": "Root package for Process Management System",
+  "description": "Root package for Asset Management System",
   "scripts": {
     "start": "cd electron && npm start",
     "build": "cd electron && npm run dist"

@@ -1,4 +1,4 @@
-# Process Management System — User Manual
+# Asset Management System — User Manual
 
 > **Version:** 2.1 | **Updated:** 20 February 2026 | **Platform:** Offline Desktop (Windows)
 
