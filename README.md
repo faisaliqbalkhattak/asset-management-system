@@ -92,6 +92,3 @@ The packaged application will appear in `electron/dist/`.
 
 - [User Manual](USER_MANUAL_V2.md) — complete guide to every module and workflow
 
-## License
-
-ISC
