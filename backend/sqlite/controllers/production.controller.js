@@ -183,6 +183,15 @@ function getMonthlySummary(year, month) {
     return DailyProductionRepository.getMonthlySummary(parseInt(year), month);
 }
 
+/**
+ * Delete monthly summary
+ */
+function deleteMonthlySummary(id) {
+    const summary = MonthlyProductionSummaryRepository.findById(id);
+    if (!summary) return false;
+    return MonthlyProductionSummaryRepository.delete(id);
+}
+
 // =====================================================
 // AGGREGATE CLASSIFICATION
 // =====================================================
@@ -218,6 +227,7 @@ module.exports = {
     getByMonth,
     upsert,
     getMonthlySummary,
+    deleteMonthlySummary,
     getAllClassifications,
     getDefaultClassification,
     createClassification,

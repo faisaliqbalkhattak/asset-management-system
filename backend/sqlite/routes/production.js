@@ -187,4 +187,17 @@ router.put('/monthly/:id', (req, res, next) => {
     }
 });
 
+// DELETE monthly summary
+router.delete('/monthly/:id', (req, res, next) => {
+    try {
+        const deleted = ProductionController.deleteMonthlySummary(req.params.id);
+        if (!deleted) {
+            return res.status(404).json({ success: false, error: 'Summary not found' });
+        }
+        res.json({ success: true, message: 'Summary deleted' });
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;

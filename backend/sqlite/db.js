@@ -712,6 +712,7 @@ function createTables() {
         day_name TEXT,
         hours_operated REAL DEFAULT 0,
         rate_per_hour REAL DEFAULT 0,
+        fuel_consumption_rate REAL DEFAULT 0,
         fuel_consumed REAL DEFAULT 0,
         fuel_rate REAL DEFAULT 0,
         misc_expense REAL DEFAULT 0,
@@ -816,6 +817,7 @@ function createTables() {
         sold_at_site_cft REAL DEFAULT 0,
         sold_at_site_amount REAL DEFAULT 0,
         approx_per_cft_cost REAL DEFAULT 0,
+        allowance_cft REAL DEFAULT 0,
         per_cft_cost REAL DEFAULT 0,
         stock_at_site_cft REAL DEFAULT 0,
         cost_of_stocked_material REAL DEFAULT 0,
@@ -835,12 +837,35 @@ function createTables() {
         actual_expenses REAL DEFAULT 0,
         total_income REAL DEFAULT 0,
         profit REAL DEFAULT 0,
-        partner1_share_percentage REAL DEFAULT 50,
+        partner1_share_percentage REAL DEFAULT 25,
         partner1_share_amount REAL DEFAULT 0,
         partner1_sub1_amount REAL DEFAULT 0,
-        partner2_share_percentage REAL DEFAULT 50,
+        partner1_paid_amount REAL DEFAULT 0,
+        partner2_share_percentage REAL DEFAULT 25,
         partner2_share_amount REAL DEFAULT 0,
         partner2_sub1_amount REAL DEFAULT 0,
+        partner2_paid_amount REAL DEFAULT 0,
+        partner3_share_percentage REAL DEFAULT 25,
+        partner3_share_amount REAL DEFAULT 0,
+        partner3_sub1_amount REAL DEFAULT 0,
+        partner3_paid_amount REAL DEFAULT 0,
+        partner4_share_percentage REAL DEFAULT 25,
+        partner4_share_amount REAL DEFAULT 0,
+        partner4_sub1_amount REAL DEFAULT 0,
+        partner4_paid_amount REAL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS partner_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        partner_id INTEGER NOT NULL,
+        entry_date DATE NOT NULL,
+        period_month TEXT,
+        period_year INTEGER,
+        entry_type TEXT NOT NULL,
+        amount REAL DEFAULT 0,
+        notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -913,10 +938,25 @@ function createTables() {
         `ALTER TABLE dumper_operation ADD COLUMN misc_description_2 TEXT`,
         // Generator: fuel consumption rate per hour
         `ALTER TABLE generator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
+        // Excavator: fuel consumption rate per hour
+        `ALTER TABLE excavator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
         // Expense categories: category_type for sub-categories
         `ALTER TABLE expense_categories ADD COLUMN category_type TEXT DEFAULT 'MAIN'`,
         // Monthly production summary: allowance_percent for monthly-level allowance deduction
         `ALTER TABLE monthly_production_summary ADD COLUMN allowance_percent REAL DEFAULT 0`,
+        // Monthly production summary: allowance_cft for stock-level allowance deduction
+        `ALTER TABLE monthly_production_summary ADD COLUMN allowance_cft REAL DEFAULT 0`,
+        // Profit sharing: partner paid amounts and extra partners
+        `ALTER TABLE profit_sharing ADD COLUMN partner1_paid_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner2_paid_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner3_share_percentage REAL DEFAULT 25`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner3_share_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner3_sub1_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner3_paid_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner4_share_percentage REAL DEFAULT 25`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner4_share_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner4_sub1_amount REAL DEFAULT 0`,
+        `ALTER TABLE profit_sharing ADD COLUMN partner4_paid_amount REAL DEFAULT 0`,
     ];
 
     migrations.forEach(sql => {

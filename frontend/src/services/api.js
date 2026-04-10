@@ -331,6 +331,8 @@ export const monthlyProductionApi = {
   save: (data) => api.post('/production/monthly', data),
   // Update summary
   update: (id, data) => api.put(`/production/monthly/${id}`, data),
+  // Delete summary
+  delete: (id) => api.delete(`/production/monthly/${id}`),
 };
 
 // ============================================================
@@ -390,6 +392,16 @@ export const profitSharingApi = {
   update: (id, data) => api.put(`/summary/profit/${id}`, data),
   // Get by year
   getByYear: (year) => api.get(`/summary/profit/year/${year}`),
+};
+
+// ============================================================
+// PARTNER LEDGER API
+// ============================================================
+export const partnerLedgerApi = {
+  getAll: () => api.get('/summary/partner-ledger'),
+  getByPartner: (partnerId) => api.get(`/summary/partner-ledger/partner/${partnerId}`),
+  getBalances: () => api.get('/summary/partner-ledger/balances'),
+  addPayment: (data) => api.post('/summary/partner-ledger/payment', data),
 };
 
 // ============================================================

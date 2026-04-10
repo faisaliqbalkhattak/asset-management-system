@@ -51,10 +51,10 @@ const COLUMN_CONFIGS = {
   Excavator: {
     dateField: 'operation_date',
     primaryColumns: ['operation_date', 'equipment_name', 'rent_amount', 'fuel_amount', 'total_amount'],
-    allColumns: ['operation_date', 'day_name', 'equipment_name', 'hours_operated', 'rate_per_hour', 'rent_amount', 'fuel_consumed', 'fuel_rate', 'fuel_amount', 'misc_expense', 'misc_description', 'misc_expense_2', 'misc_description_2', 'total_amount', 'remarks'],
+    allColumns: ['operation_date', 'day_name', 'equipment_name', 'hours_operated', 'rate_per_hour', 'rent_amount', 'fuel_consumption_rate', 'fuel_consumed', 'fuel_rate', 'fuel_amount', 'misc_expense', 'misc_description', 'misc_expense_2', 'misc_description_2', 'total_amount', 'remarks'],
     labels: {
       operation_date: 'Date', day_name: 'Day', equipment_name: 'Equipment', hours_operated: 'Hours',
-      rate_per_hour: 'Rate/Hr', rent_amount: 'Rent', fuel_consumed: 'Fuel (L)',
+      rate_per_hour: 'Rate/Hr', rent_amount: 'Rent', fuel_consumption_rate: 'Fuel Rate/Hr', fuel_consumed: 'Fuel (L)',
       fuel_rate: 'Fuel Rate', fuel_amount: 'Fuel Amount', misc_expense: 'Misc 1',
       misc_description: 'Misc 1 Desc', misc_expense_2: 'Misc 2', misc_description_2: 'Misc 2 Desc',
       total_amount: 'Total', remarks: 'Remarks',
@@ -62,7 +62,7 @@ const COLUMN_CONFIGS = {
     editableFields: {
       hours_operated: { type: 'number', step: '0.5' },
       rate_per_hour: { type: 'number', step: '0.01' },
-      fuel_consumed: { type: 'number', step: '0.01' },
+      fuel_consumption_rate: { type: 'number', step: '0.01' },
       fuel_rate: { type: 'number', step: '0.01' },
       misc_expense: { type: 'number', step: '0.01' },
       misc_description: { type: 'text' },
@@ -72,14 +72,20 @@ const COLUMN_CONFIGS = {
     },
     computePayload: (data) => {
       const rentAmount = (parseFloat(data.hours_operated) || 0) * (parseFloat(data.rate_per_hour) || 0);
-      const fuelAmount = (parseFloat(data.fuel_consumed) || 0) * (parseFloat(data.fuel_rate) || 0);
+      const fuelConsumptionRate = parseFloat(data.fuel_consumption_rate) || 0;
+      const hoursOperated = parseFloat(data.hours_operated) || 0;
+      const fuelConsumed = fuelConsumptionRate > 0 && hoursOperated > 0
+        ? fuelConsumptionRate * hoursOperated
+        : (parseFloat(data.fuel_consumed) || 0);
+      const fuelAmount = fuelConsumed * (parseFloat(data.fuel_rate) || 0);
       return {
         equipment_name: data.equipment_name,
         operation_date: data.operation_date,
         hours_operated: parseFloat(data.hours_operated) || 0,
         rate_per_hour: parseFloat(data.rate_per_hour) || 0,
         rent_amount: rentAmount,
-        fuel_consumed: parseFloat(data.fuel_consumed) || 0,
+        fuel_consumption_rate: fuelConsumptionRate,
+        fuel_consumed: fuelConsumed,
         fuel_rate: parseFloat(data.fuel_rate) || 0,
         fuel_amount: fuelAmount,
         misc_expense: parseFloat(data.misc_expense) || 0,
@@ -367,10 +373,24 @@ const UPDATE_FN_MAP = {
   Production: 'updateDailyProduction',
 };
 
+const DELETE_FN_MAP = {
+  Generator: 'deleteGeneratorOperation',
+  Excavator: 'deleteExcavatorOperation',
+  Loaders: 'deleteLoaderOperation',
+  'Dumper Trip': 'deleteDumperOperation',
+  'Dumper Misc': 'deleteDumperMiscExpense',
+  'Blasting Material': 'deleteBlastingMaterial',
+  Langar: 'deleteLangarExpense',
+  'Plant Expense': 'deletePlantExpense',
+  'Misc Expense': 'deleteMiscExpense',
+  Salary: 'deleteSalary',
+  Production: 'deleteDailyProduction',
+};
+
 // ============================================================
 // TRANSACTION ROW - Expandable row with edit capability
 // ============================================================
-const TransactionRow = ({ transaction, config, onUpdate, isEditing, onStartEdit, onCancelEdit }) => {
+const TransactionRow = ({ transaction, config, onUpdate, onDelete, isEditing, onStartEdit, onCancelEdit }) => {
   const [expanded, setExpanded] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -454,6 +474,12 @@ const TransactionRow = ({ transaction, config, onUpdate, isEditing, onStartEdit,
               Edit
             </button>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(transaction.modelType, transaction.operationId); }}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
         </td>
       </tr>
 
@@ -559,6 +585,11 @@ const Transactions = () => {
     return fnName ? data[fnName] : null;
   }, [data]);
 
+  const getDeleteFn = useCallback((modelType) => {
+    const fnName = DELETE_FN_MAP[modelType];
+    return fnName ? data[fnName] : null;
+  }, [data]);
+
   const handleUpdate = useCallback(async (modelType, operationId, payload) => {
     const updateFn = getUpdateFn(modelType);
     if (!updateFn) {
@@ -566,6 +597,17 @@ const Transactions = () => {
     }
     await updateFn(operationId, payload);
   }, [getUpdateFn]);
+
+  const handleDelete = useCallback(async (modelType, operationId) => {
+    const deleteFn = getDeleteFn(modelType);
+    if (!deleteFn) {
+      throw new Error(`No delete function found for ${modelType}`);
+    }
+    const confirmed = window.confirm('Delete this entry permanently?');
+    if (!confirmed) return;
+    await deleteFn(operationId);
+    setEditingId(null);
+  }, [getDeleteFn]);
 
   return (
     <div>
@@ -623,6 +665,7 @@ const Transactions = () => {
                 onStartEdit={setEditingId}
                 onCancelEdit={() => setEditingId(null)}
                 onUpdate={handleUpdate}
+                onDelete={handleDelete}
               />
             ) : (
               <TypedTransactionsTable
@@ -632,6 +675,7 @@ const Transactions = () => {
                 onStartEdit={setEditingId}
                 onCancelEdit={() => setEditingId(null)}
                 onUpdate={handleUpdate}
+                onDelete={handleDelete}
               />
             )}
           </div>
@@ -667,7 +711,7 @@ const Transactions = () => {
 // ============================================================
 // ALL TRANSACTIONS TABLE - Mixed types, generic columns
 // ============================================================
-const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEdit, onUpdate }) => {
+const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEdit, onUpdate, onDelete }) => {
   return (
     <table className="min-w-full divide-y divide-gray-200">
       <thead className="bg-gray-50">
@@ -704,6 +748,7 @@ const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEd
               onStartEdit={onStartEdit}
               onCancelEdit={onCancelEdit}
               onUpdate={(opId, payload) => onUpdate(t.modelType, opId, payload)}
+              onDelete={onDelete}
             />
           );
         })}
@@ -713,7 +758,7 @@ const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEd
 };
 
 // Row for AllTransactionsTable - shows date, type, description, amount + expandable details
-const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCancelEdit, onUpdate }) => {
+const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCancelEdit, onUpdate, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -787,6 +832,12 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
               Edit
             </button>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(transaction.modelType, transaction.operationId); }}
+            className="text-red-600 hover:text-red-800"
+          >
+            Delete
+          </button>
         </td>
       </tr>
       {expanded && (
@@ -836,7 +887,7 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
 // ============================================================
 // TYPED TRANSACTIONS TABLE - Single type, type-specific columns
 // ============================================================
-const TypedTransactionsTable = ({ transactions, modelType, editingId, onStartEdit, onCancelEdit, onUpdate }) => {
+const TypedTransactionsTable = ({ transactions, modelType, editingId, onStartEdit, onCancelEdit, onUpdate, onDelete }) => {
   const config = COLUMN_CONFIGS[modelType];
 
   if (!config) {
@@ -870,6 +921,7 @@ const TypedTransactionsTable = ({ transactions, modelType, editingId, onStartEdi
             onStartEdit={onStartEdit}
             onCancelEdit={onCancelEdit}
             onUpdate={(opId, payload) => onUpdate(t.modelType, opId, payload)}
+            onDelete={onDelete}
           />
         ))}
       </tbody>

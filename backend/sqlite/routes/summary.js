@@ -6,10 +6,11 @@
 
 const express = require('express');
 const router = express.Router();
-const { MonthlyExpenseSummaryRepository, ProfitSharingNewRepository } = require('../repositories');
+const { MonthlyExpenseSummaryRepository, ProfitSharingNewRepository, PartnerLedgerRepository } = require('../repositories');
 
 const expenseRepo = new MonthlyExpenseSummaryRepository();
 const profitRepo = new ProfitSharingNewRepository();
+const partnerLedgerRepo = new PartnerLedgerRepository();
 
 // =====================================================
 // MONTHLY EXPENSE SUMMARY
@@ -119,11 +120,24 @@ router.post('/profit', (req, res, next) => {
             stock_at_site_cft: parseFloat(body.stock_cft || body.stock_at_site_cft) || 0,
             estimated_rate: parseFloat(body.cost_per_cft || body.estimated_rate) || 0,
             actual_expenses: parseFloat(body.total_expenses || body.actual_expenses) || 0,
-            partner1_share_percentage: parseFloat(body.partner_a_share || body.partner1_share_percentage) || 50,
-            partner2_share_percentage: parseFloat(body.partner_b_share || body.partner2_share_percentage) || 50,
+            partner1_share_percentage: parseFloat(body.partner1_share_percentage) || 25,
+            partner2_share_percentage: parseFloat(body.partner2_share_percentage) || 25,
+            partner3_share_percentage: parseFloat(body.partner3_share_percentage) || 25,
+            partner4_share_percentage: parseFloat(body.partner4_share_percentage) || 25,
+            partner1_paid_amount: parseFloat(body.partner1_paid_amount) || 0,
+            partner2_paid_amount: parseFloat(body.partner2_paid_amount) || 0,
+            partner3_paid_amount: parseFloat(body.partner3_paid_amount) || 0,
+            partner4_paid_amount: parseFloat(body.partner4_paid_amount) || 0,
         };
 
         const profitSharing = profitRepo.upsert(month, year, data);
+
+        // Upsert partner share ledger entries for this period
+        partnerLedgerRepo.upsertShareEntry(1, month, year, profitSharing.partner1_share_amount || 0);
+        partnerLedgerRepo.upsertShareEntry(2, month, year, profitSharing.partner2_share_amount || 0);
+        partnerLedgerRepo.upsertShareEntry(3, month, year, profitSharing.partner3_share_amount || 0);
+        partnerLedgerRepo.upsertShareEntry(4, month, year, profitSharing.partner4_share_amount || 0);
+
         res.status(201).json({ success: true, data: profitSharing });
     } catch (error) {
         next(error);
@@ -138,6 +152,60 @@ router.put('/profit/:id', (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Profit sharing not found' });
         }
         res.json({ success: true, data: profitSharing });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// =====================================================
+// PARTNER LEDGER
+// =====================================================
+
+// GET all ledger entries
+router.get('/partner-ledger', (req, res, next) => {
+    try {
+        const entries = partnerLedgerRepo.getAll();
+        res.json({ success: true, data: entries });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// GET ledger entries by partner
+router.get('/partner-ledger/partner/:partnerId', (req, res, next) => {
+    try {
+        const entries = partnerLedgerRepo.getByPartner(parseInt(req.params.partnerId));
+        res.json({ success: true, data: entries });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// GET balances by partner
+router.get('/partner-ledger/balances', (req, res, next) => {
+    try {
+        const balances = partnerLedgerRepo.getBalances();
+        res.json({ success: true, data: balances });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// POST payment entry
+router.post('/partner-ledger/payment', (req, res, next) => {
+    try {
+        const { partner_id, entry_date, amount, notes } = req.body;
+        if (!partner_id || !entry_date) {
+            return res.status(400).json({ success: false, error: 'partner_id and entry_date are required' });
+        }
+        const entry = partnerLedgerRepo.create({
+            partner_id: parseInt(partner_id),
+            entry_date,
+            entry_type: 'PAYMENT',
+            amount: parseFloat(amount) || 0,
+            notes: notes || null
+        });
+        res.status(201).json({ success: true, data: entry });
     } catch (error) {
         next(error);
     }

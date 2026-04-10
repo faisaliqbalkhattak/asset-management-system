@@ -14,12 +14,12 @@ const NON_EQUIPMENT_CATEGORIES = [
   { key: 'langar', label: 'Langar' },
   { key: 'plant_exp', label: 'Plant Exp' },
   { key: 'human_res', label: 'HR Salaries' },
+  { key: 'misc_exp', label: 'Misc Expense' },
 ];
 
 const MonthlySummary = () => {
   const {
     equipment,
-    expenseCategories,
     generatorOperations,
     excavatorOperations,
     loaderOperations,
@@ -91,6 +91,14 @@ const MonthlySummary = () => {
     const years = new Set();
     const allData = [
       ...generatorOperations,
+      ...excavatorOperations,
+      ...loaderOperations,
+      ...dumperOperations,
+      ...dumperMiscExpenses,
+      ...blastingMaterials,
+      ...langarExpenses,
+      ...plantExpenses,
+      ...miscExpenses,
       ...salaries,
     ];
     allData.forEach((item) => {
@@ -101,7 +109,18 @@ const MonthlySummary = () => {
       }
     });
     return Array.from(years).sort((a, b) => b - a);
-  }, [generatorOperations, salaries]);
+  }, [
+    generatorOperations,
+    excavatorOperations,
+    loaderOperations,
+    dumperOperations,
+    dumperMiscExpenses,
+    blastingMaterials,
+    langarExpenses,
+    plantExpenses,
+    miscExpenses,
+    salaries,
+  ]);
 
   // Calculate monthly data for all categories
   const monthlySummaryData = useMemo(() => {

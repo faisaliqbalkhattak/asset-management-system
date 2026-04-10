@@ -178,8 +178,8 @@ const YearlySummary = () => {
 
       // Revenue from monthly production summaries (sold amount + stock value)
       const FULL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const matchingSummary = (monthlyProductionSummaries || []).find(s =>
-        s.summary_year == year && s.summary_month === FULL_MONTH_NAMES[index]
+      const matchingSummary = (monthlyProductionSummaries || []).find(
+        (s) => String(s.summary_year) === String(year) && s.summary_month === FULL_MONTH_NAMES[index]
       );
       const revenue = matchingSummary ? (matchingSummary.total_cost || 0) : 0;
 

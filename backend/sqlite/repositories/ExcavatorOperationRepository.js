@@ -49,7 +49,10 @@ class ExcavatorOperationRepository extends BaseRepository {
     calculateTotals(data) {
         const hoursOperated = parseFloat(data.hours_operated) || 0;
         const ratePerHour = parseFloat(data.rate_per_hour) || 0;
-        const fuelConsumed = parseFloat(data.fuel_consumed) || 0;
+        const fuelConsumptionRate = parseFloat(data.fuel_consumption_rate) || 0;
+        const fuelConsumed = fuelConsumptionRate > 0 && hoursOperated > 0
+            ? fuelConsumptionRate * hoursOperated
+            : (parseFloat(data.fuel_consumed) || 0);
         const fuelRate = parseFloat(data.fuel_rate) || 0;
 
         const rentAmount = hoursOperated * ratePerHour;
@@ -58,6 +61,7 @@ class ExcavatorOperationRepository extends BaseRepository {
 
         return {
             ...data,
+            fuel_consumed: Math.round(fuelConsumed * 100) / 100,
             rent_amount: Math.round(rentAmount * 100) / 100,
             fuel_amount: Math.round(fuelAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100

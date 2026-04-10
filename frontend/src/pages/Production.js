@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 
 const Production = () => {
-  const { dailyProductions, addDailyProduction, updateDailyProduction, deleteDailyProduction, saveMonthlyProduction, monthlyProductionSummaries } = useData();
+  const { dailyProductions, addDailyProduction, updateDailyProduction, deleteDailyProduction, saveMonthlyProduction, deleteMonthlyProductionSummary, monthlyProductionSummaries } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -120,7 +120,7 @@ const Production = () => {
     // Check if we have a summary from backend
     // Backend returns summary_month (name) and summary_year
     const summary = monthlyProductionSummaries?.find(s => 
-      (s.summary_year == salesData.year && s.summary_month === getMonthName(salesData.month)) ||
+      (String(s.summary_year) === String(salesData.year) && s.summary_month === getMonthName(salesData.month)) ||
       s.month === monthKey // Fallback if API changed to return formatted key
     );
     
@@ -138,16 +138,18 @@ const Production = () => {
     // Users expect "what they see is what is calculated".
     const totalProducedRaw2 = Math.round(totalProducedRaw);
 
-    // Apply monthly allowance deduction
-    const allowancePercent = parseFloat(salesData.allowance_percent) || 0;
-    const allowanceDeduction = Math.round(totalProducedRaw2 * allowancePercent / 100);
-    const totalProduced = totalProducedRaw2 - allowanceDeduction;
-
     const soldCft = parseFloat(salesData.sold_cft) || 0;
     const soldAmount = parseFloat(salesData.sold_amount) || 0;
     const approxCost = parseFloat(salesData.approx_cost) || 0;
 
-    const remainingStock = totalProduced - soldCft;
+    // Remaining stock before allowance (after sold is deducted)
+    const remainingStockRaw = totalProducedRaw2 - soldCft;
+
+    // Apply monthly allowance deduction ONLY to remaining stock
+    const allowancePercent = parseFloat(salesData.allowance_percent) || 0;
+    const allowanceDeduction = Math.round(remainingStockRaw * allowancePercent / 100);
+
+    const remainingStock = remainingStockRaw - allowanceDeduction;
     const perCftCostSold = soldCft > 0 ? (soldAmount / soldCft) : 0;
     
     // Stock Value logic: User requirement - approx cost is per CFT of remaining stock
@@ -161,7 +163,7 @@ const Production = () => {
       totalProducedRaw: totalProducedRaw2,
       allowancePercent,
       allowanceDeduction,
-      totalProduced,
+      remainingStockRaw,
       remainingStock,
       perCftCostSold,
       stockValue,
@@ -196,7 +198,7 @@ const Production = () => {
         approx_cost: parseFloat(salesData.approx_cost),
         allowance_percent: parseFloat(salesData.allowance_percent) || 0,
         // Important: Save the current total production so the snapshot is consistent
-        net_aggregate_cft: salesCalculations.totalProduced
+        net_aggregate_cft: salesCalculations.totalProducedRaw
       });
       setSuccess('Monthly sales data saved successfully!');
       setTimeout(() => setSuccess(''), 3000);
@@ -435,6 +437,19 @@ const Production = () => {
               </div>
             </div>
 
+            {/* Sales Inputs */}
+            <div>
+              <Label htmlFor="sold_cft">Quantity Sold (CFT)</Label>
+              <Input
+                type="number"
+                name="sold_cft"
+                value={salesData.sold_cft}
+                onChange={handleSalesChange}
+                placeholder="0"
+                className="bg-blue-50"
+              />
+            </div>
+
             {/* Allowance */}
             <div>
               <Label htmlFor="allowance_percent">Allowance & Margin (%)</Label>
@@ -448,19 +463,6 @@ const Production = () => {
                 min="0"
                 max="100"
                 className="bg-red-50 border-red-200"
-              />
-            </div>
-
-            {/* Sales Inputs */}
-            <div>
-              <Label htmlFor="sold_cft">Quantity Sold (CFT)</Label>
-              <Input
-                type="number"
-                name="sold_cft"
-                value={salesData.sold_cft}
-                onChange={handleSalesChange}
-                placeholder="0"
-                className="bg-blue-50"
               />
             </div>
             
@@ -501,7 +503,7 @@ const Production = () => {
           <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wider">
             Stock & Value Analysis ({salesData.month}/{salesData.year})
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-7 gap-4 text-center">
+          <div className="grid grid-cols-2 lg:grid-cols-8 gap-4 text-center">
             
             <div className="bg-white p-3 rounded shadow-sm border border-gray-100">
               <div className="text-xs text-gray-500 mb-1">Aggregate Produced</div>
@@ -511,24 +513,32 @@ const Production = () => {
               <div className="text-xs text-gray-400">CFT</div>
             </div>
 
+            <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
+              <div className="text-xs text-blue-600 mb-1">Sold (CFT)</div>
+              <div className="text-lg font-bold text-blue-700">
+                {parseFloat(salesData.sold_cft || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-xs text-gray-400">CFT</div>
+            </div>
+
+            <div className="bg-white p-3 rounded shadow-sm border border-purple-100">
+              <div className="text-xs text-purple-600 mb-1">Remaining Stock (Before Allowance)</div>
+              <div className="text-lg font-bold text-purple-700">
+                {salesCalculations.remainingStockRaw.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-xs text-gray-400">CFT</div>
+            </div>
+
             <div className="bg-red-50 p-3 rounded shadow-sm border border-red-100">
-              <div className="text-xs text-red-600 mb-1">Allowance ({salesCalculations.allowancePercent}%)</div>
+              <div className="text-xs text-red-600 mb-1">Allowance on Remaining ({salesCalculations.allowancePercent}%)</div>
               <div className="text-lg font-bold text-red-600">
                 -{salesCalculations.allowanceDeduction.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
               <div className="text-xs text-red-400">CFT</div>
             </div>
 
-            <div className="bg-white p-3 rounded shadow-sm border border-green-200">
-              <div className="text-xs text-green-600 mb-1">Net Production</div>
-              <div className="text-lg font-bold text-green-700">
-                {salesCalculations.totalProduced.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </div>
-              <div className="text-xs text-gray-400">CFT</div>
-            </div>
-
             <div className="bg-white p-3 rounded shadow-sm border border-gray-100">
-              <div className="text-xs text-gray-500 mb-1">Remaining Stock</div>
+              <div className="text-xs text-gray-500 mb-1">Remaining Stock (After Allowance)</div>
               <div className="text-lg font-bold text-purple-700">
                 {salesCalculations.remainingStock.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
@@ -606,6 +616,7 @@ const Production = () => {
                 <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">Sold (CFT)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider">Sale Amount</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase tracking-wider">Stock (CFT)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-600 uppercase tracking-wider">Allowance (CFT)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-amber-600 uppercase tracking-wider">Stock Rate</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-emerald-600 uppercase tracking-wider">Total Revenue</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -614,7 +625,7 @@ const Production = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {monthlyProductionSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">No sales records found</td>
+                  <td colSpan="9" className="px-6 py-4 text-center text-gray-500">No sales records found</td>
                 </tr>
               ) : (
                 [...monthlyProductionSummaries]
@@ -650,6 +661,9 @@ const Production = () => {
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-purple-600 font-medium">
                       {summary.stock_at_site_cft?.toLocaleString()}
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
+                      {summary.allowance_cft?.toLocaleString() || 0}
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-amber-600">
                       {(summary.approx_per_cft_cost || 0).toLocaleString()}/CFT
                     </td>
@@ -672,6 +686,15 @@ const Production = () => {
                         className="text-blue-600 hover:text-blue-900"
                       >
                         Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!window.confirm('Delete this monthly summary?')) return;
+                          deleteMonthlyProductionSummary(summary.id);
+                        }}
+                        className="text-red-600 hover:text-red-900 ml-3"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>

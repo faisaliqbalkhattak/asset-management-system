@@ -32,6 +32,7 @@ const HumanResourceSalaryRepository = require('./HumanResourceSalaryRepository')
 const MonthlyProductionSummaryRepository = require('./MonthlyProductionSummaryRepository');
 const MonthlyExpenseSummaryRepository = require('./MonthlyExpenseSummaryRepository');
 const ProfitSharingNewRepository = require('./ProfitSharingNewRepository');
+const PartnerLedgerRepository = require('./PartnerLedgerRepository');
 
 module.exports = {
     // Base
@@ -82,5 +83,6 @@ module.exports = {
     
     // Summary & Profit Sharing
     MonthlyExpenseSummaryRepository,
-    ProfitSharingNewRepository
+    ProfitSharingNewRepository,
+    PartnerLedgerRepository
 };

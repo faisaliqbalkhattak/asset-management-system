@@ -17,6 +17,7 @@ const RecentEntriesSection = ({
   allColumns,       // [{key, label}] - all columns from DB
   editingId,
   onEdit,
+  onDelete,
   formatters = {},  // optional per-column value formatters
 }) => {
   const [recentCount, setRecentCount] = useState(5);
@@ -94,6 +95,9 @@ const RecentEntriesSection = ({
                         {expandedRows[item.id] ? '▲' : '▼'}
                       </button>
                       <button onClick={() => onEdit(item)} className="text-blue-600 hover:text-blue-800">Edit</button>
+                      {onDelete && (
+                        <button onClick={() => onDelete(item)} className="text-red-600 hover:text-red-800">Delete</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -185,7 +189,7 @@ const DailyEntries = () => {
 // GENERATOR FORM - Select from registered generators
 // ============================================================
 const GeneratorForm = () => {
-  const { equipment, generatorOperations, addGeneratorOperation, updateGeneratorOperation } = useData();
+  const { equipment, generatorOperations, addGeneratorOperation, updateGeneratorOperation, deleteGeneratorOperation } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -247,6 +251,21 @@ const GeneratorForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (op) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteGeneratorOperation(op.id);
+      if (editingId === op.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Generator entry deleted!');
+      showToast('Generator entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -320,7 +339,7 @@ const GeneratorForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Generator Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Total = Fuel Amount + Rent/Day</p>
+      <p className="text-sm text-gray-600 mb-4">Rent = Rent/Day | Fuel = Consumption/Hr × Hours × Rate | Total = Rent + Fuel</p>
 
       {generators.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -448,6 +467,7 @@ const GeneratorForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -457,7 +477,7 @@ const GeneratorForm = () => {
 // EXCAVATOR FORM - Select from registered excavators
 // ============================================================
 const ExcavatorForm = () => {
-  const { equipment, excavatorOperations, addExcavatorOperation, updateExcavatorOperation } = useData();
+  const { equipment, excavatorOperations, addExcavatorOperation, updateExcavatorOperation, deleteExcavatorOperation } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -475,6 +495,7 @@ const ExcavatorForm = () => {
     operation_date: new Date().toISOString().split('T')[0],
     hours_operated: '',
     rate_per_hour: '3500',
+    fuel_consumption_rate: '',
     fuel_consumed: '',
     fuel_rate: '',
     misc_expense: '',
@@ -491,7 +512,12 @@ const ExcavatorForm = () => {
   }, [excavators, formData.equipment_name]);
 
   const rentAmount = (parseFloat(formData.hours_operated) || 0) * (parseFloat(formData.rate_per_hour) || 0);
-  const fuelAmount = (parseFloat(formData.fuel_consumed) || 0) * (parseFloat(formData.fuel_rate) || 0);
+  const fuelConsumptionRate = parseFloat(formData.fuel_consumption_rate) || 0;
+  const hoursOperated = parseFloat(formData.hours_operated) || 0;
+  const effectiveFuelConsumed = fuelConsumptionRate > 0 && hoursOperated > 0
+    ? fuelConsumptionRate * hoursOperated
+    : (parseFloat(formData.fuel_consumed) || 0);
+  const fuelAmount = effectiveFuelConsumed * (parseFloat(formData.fuel_rate) || 0);
   const miscAmount = parseFloat(formData.misc_expense) || 0;
   const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
   const totalMisc = miscAmount + miscAmount2;
@@ -504,12 +530,16 @@ const ExcavatorForm = () => {
   };
 
   const handleEdit = (op) => {
+    const inferredFuelRate = (parseFloat(op.hours_operated) || 0) > 0
+      ? (parseFloat(op.fuel_consumed) || 0) / (parseFloat(op.hours_operated) || 1)
+      : 0;
     setEditingId(op.id);
     setFormData({
       equipment_name: op.equipment_name || excavators[0]?.name || '',
       operation_date: op.operation_date,
       hours_operated: op.hours_operated?.toString() || '',
       rate_per_hour: op.rate_per_hour?.toString() || '3500',
+      fuel_consumption_rate: op.fuel_consumption_rate?.toString() || (inferredFuelRate ? inferredFuelRate.toString() : ''),
       fuel_consumed: op.fuel_consumed?.toString() || '',
       fuel_rate: op.fuel_rate?.toString() || '',
       misc_expense: op.misc_expense?.toString() || '',
@@ -522,6 +552,21 @@ const ExcavatorForm = () => {
     setSuccess('');
   };
 
+  const handleDelete = async (op) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteExcavatorOperation(op.id);
+      if (editingId === op.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Excavator entry deleted!');
+      showToast('Excavator entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
@@ -529,6 +574,7 @@ const ExcavatorForm = () => {
       operation_date: new Date().toISOString().split('T')[0],
       hours_operated: '',
       rate_per_hour: formData.rate_per_hour,
+      fuel_consumption_rate: formData.fuel_consumption_rate,
       fuel_consumed: '',
       fuel_rate: formData.fuel_rate,
       misc_expense: '',
@@ -556,7 +602,8 @@ const ExcavatorForm = () => {
         hours_operated: parseFloat(formData.hours_operated) || 0,
         rate_per_hour: parseFloat(formData.rate_per_hour) || 0,
         rent_amount: rentAmount,
-        fuel_consumed: parseFloat(formData.fuel_consumed) || 0,
+        fuel_consumption_rate: parseFloat(formData.fuel_consumption_rate) || 0,
+        fuel_consumed: effectiveFuelConsumed,
         fuel_rate: parseFloat(formData.fuel_rate) || 0,
         fuel_amount: fuelAmount,
         misc_expense: miscAmount,
@@ -585,6 +632,7 @@ const ExcavatorForm = () => {
         operation_date: new Date().toISOString().split('T')[0],
         hours_operated: '',
         rate_per_hour: formData.rate_per_hour,
+        fuel_consumption_rate: formData.fuel_consumption_rate,
         fuel_consumed: '',
         fuel_rate: formData.fuel_rate,
         misc_expense: '',
@@ -603,7 +651,7 @@ const ExcavatorForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Excavator Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Rent = Hours × Rate/Hr | Fuel = Fuel Consumed × Rate | Total = Rent + Fuel (Misc tracked separately)</p>
+      <p className="text-sm text-gray-600 mb-4">Rent = Hours × Rate/Hr | Fuel = Consumption/Hr × Hours × Rate | Total = Rent + Fuel (Misc tracked separately)</p>
 
       {excavators.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -639,8 +687,13 @@ const ExcavatorForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="fuel_consumed">Fuel Consumed (L)</Label>
-            <Input type="number" id="fuel_consumed" name="fuel_consumed" value={formData.fuel_consumed} onChange={handleChange} placeholder="0" step="0.01" />
+            <Label htmlFor="fuel_consumption_rate">Fuel Consumption/Hr (L)</Label>
+            <Input type="number" id="fuel_consumption_rate" name="fuel_consumption_rate" value={formData.fuel_consumption_rate} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+
+          <div>
+            <Label htmlFor="fuel_consumed">Total Fuel (L)</Label>
+            <Input type="number" id="fuel_consumed" name="fuel_consumed" value={effectiveFuelConsumed.toFixed(2)} readOnly className="bg-gray-50" />
           </div>
 
           <div>
@@ -684,7 +737,7 @@ const ExcavatorForm = () => {
           <div>
             <Label className="text-gray-600">Fuel</Label>
             <div className="text-lg font-bold">{fuelAmount.toLocaleString()}</div>
-            <span className="text-xs text-gray-500">{formData.fuel_consumed || 0}L × Rs.{formData.fuel_rate || 0}/L</span>
+            <span className="text-xs text-gray-500">{effectiveFuelConsumed.toFixed(2)}L × Rs.{formData.fuel_rate || 0}/L</span>
           </div>
           <div>
             <Label className="text-amber-600">Misc (separate)</Label>
@@ -725,6 +778,7 @@ const ExcavatorForm = () => {
           { key: 'hours_operated', label: 'Hours' },
           { key: 'rate_per_hour', label: 'Rate/Hr' },
           { key: 'rent_amount', label: 'Rent' },
+          { key: 'fuel_consumption_rate', label: 'Fuel Rate/Hr' },
           { key: 'fuel_consumed', label: 'Fuel (L)' },
           { key: 'fuel_rate', label: 'Fuel Rate' },
           { key: 'fuel_amount', label: 'Fuel Amount' },
@@ -737,6 +791,7 @@ const ExcavatorForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -746,7 +801,7 @@ const ExcavatorForm = () => {
 // LOADERS FORM - Select from registered loaders (tracked separately)
 // ============================================================
 const LoadersForm = () => {
-  const { equipment, loaderOperations, addLoaderOperation, updateLoaderOperation } = useData();
+  const { equipment, loaderOperations, addLoaderOperation, updateLoaderOperation, deleteLoaderOperation } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -812,6 +867,21 @@ const LoadersForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (op) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteLoaderOperation(op.id);
+      if (editingId === op.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Loader entry deleted!');
+      showToast('Loader entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1042,6 +1112,7 @@ const LoadersForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1051,7 +1122,7 @@ const LoadersForm = () => {
 // DUMPERS FORM - Select from registered dumpers
 // ============================================================
 const DumpersForm = () => {
-  const { equipment, dumperOperations, addDumperOperation, updateDumperOperation } = useData();
+  const { equipment, dumperOperations, addDumperOperation, updateDumperOperation, deleteDumperOperation } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1116,6 +1187,21 @@ const DumpersForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (op) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteDumperOperation(op.id);
+      if (editingId === op.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Dumper entry deleted!');
+      showToast('Dumper entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1337,6 +1423,7 @@ const DumpersForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1346,7 +1433,7 @@ const DumpersForm = () => {
 // BLASTING MATERIAL FORM - Uses dropdown for item selection
 // ============================================================
 const BlastingMaterialForm = () => {
-  const { blastingItems, blastingMaterials, addBlastingMaterial, updateBlastingMaterial } = useData();
+  const { blastingItems, blastingMaterials, addBlastingMaterial, updateBlastingMaterial, deleteBlastingMaterial } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1387,6 +1474,21 @@ const BlastingMaterialForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteBlastingMaterial(item.id);
+      if (editingId === item.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Blasting material entry deleted!');
+      showToast('Blasting material entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1543,6 +1645,7 @@ const BlastingMaterialForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1552,7 +1655,7 @@ const BlastingMaterialForm = () => {
 // LANGAR FORM
 // ============================================================
 const LangarForm = () => {
-  const { langarExpenses, addLangarExpense, updateLangarExpense } = useData();
+  const { langarExpenses, addLangarExpense, updateLangarExpense, deleteLangarExpense } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1582,6 +1685,21 @@ const LangarForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (exp) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteLangarExpense(exp.id);
+      if (editingId === exp.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Langar expense deleted!');
+      showToast('Langar expense deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1677,6 +1795,7 @@ const LangarForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1686,7 +1805,7 @@ const LangarForm = () => {
 // PLANT EXPENSE FORM - Uses expense categories dropdown
 // ============================================================
 const PlantExpenseForm = () => {
-  const { plantExpenseCategories, plantExpenses, addPlantExpense, updatePlantExpense } = useData();
+  const { plantExpenseCategories, plantExpenses, addPlantExpense, updatePlantExpense, deletePlantExpense } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1722,6 +1841,21 @@ const PlantExpenseForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (exp) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deletePlantExpense(exp.id);
+      if (editingId === exp.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Plant expense deleted!');
+      showToast('Plant expense deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1827,6 +1961,7 @@ const PlantExpenseForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1836,7 +1971,7 @@ const PlantExpenseForm = () => {
 // MISC EXPENSE FORM - Uses expense categories dropdown
 // ============================================================
 const MiscExpenseForm = () => {
-  const { miscExpenseCategories, miscExpenses, addMiscExpense, updateMiscExpense } = useData();
+  const { miscExpenseCategories, miscExpenses, addMiscExpense, updateMiscExpense, deleteMiscExpense } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1872,6 +2007,21 @@ const MiscExpenseForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (exp) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteMiscExpense(exp.id);
+      if (editingId === exp.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Misc expense deleted!');
+      showToast('Misc expense deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1977,6 +2127,7 @@ const MiscExpenseForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );
@@ -1986,7 +2137,7 @@ const MiscExpenseForm = () => {
 // SALARY FORM
 // ============================================================
 const SalaryForm = () => {
-  const { humanResources, salaries, addSalary, updateSalary } = useData();
+  const { humanResources, salaries, addSalary, updateSalary, deleteSalary } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -2047,6 +2198,21 @@ const SalaryForm = () => {
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleDelete = async (sal) => {
+    if (!window.confirm('Delete this entry permanently?')) return;
+    try {
+      await deleteSalary(sal.id);
+      if (editingId === sal.id) {
+        handleCancelEdit();
+      }
+      setSuccess('Salary entry deleted!');
+      showToast('Salary entry deleted!', 'success');
+    } catch (err) {
+      setError(err.message || 'Failed to delete');
+      showToast(err.message || 'Failed to delete', 'error');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -2197,6 +2363,7 @@ const SalaryForm = () => {
         ]}
         editingId={editingId}
         onEdit={handleEdit}
+        onDelete={handleDelete}
         formatters={{
           employee_id: (val) => getEmployeeName(val),
         }}

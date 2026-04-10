@@ -66,6 +66,10 @@ export const DataProvider = ({ children }) => {
   // eslint-disable-next-line no-unused-vars
   const [profitSharing, setProfitSharing] = useState([]);
 
+  // Partner ledger (share/payments) and balances
+  const [partnerLedgerEntries, setPartnerLedgerEntries] = useState([]);
+  const [partnerLedgerBalances, setPartnerLedgerBalances] = useState([]);
+
   // Equipment master data
   const [equipment, setEquipment] = useState([]);
 
@@ -129,6 +133,8 @@ export const DataProvider = ({ children }) => {
         expenseCategoriesRes,
         monthlySummaryRes,
         profitSharingRes,
+        partnerLedgerRes,
+        partnerLedgerBalancesRes,
       ] = await Promise.all([
         api.generatorApi.getAll().catch(() => ({ data: [] })),
         api.excavatorApi.getAll().catch(() => ({ data: [] })),
@@ -147,6 +153,8 @@ export const DataProvider = ({ children }) => {
         api.expenseCategoryApi.getAll().catch(() => ({ data: [] })),
         api.monthlyProductionApi.getAll().catch(() => ({ data: [] })),
         api.profitSharingApi.getAll().catch(() => ({ data: [] })),
+        api.partnerLedgerApi.getAll().catch(() => ({ data: [] })),
+        api.partnerLedgerApi.getBalances().catch(() => ({ data: [] })),
       ]);
 
       setGeneratorOperations(generatorRes.data || []);
@@ -166,6 +174,8 @@ export const DataProvider = ({ children }) => {
       setExpenseCategories(expenseCategoriesRes.data || []);
       setMonthlyProductionSummaries(monthlySummaryRes.data || []);
       setProfitSharing(profitSharingRes.data || []);
+      setPartnerLedgerEntries(partnerLedgerRes.data || []);
+      setPartnerLedgerBalances(partnerLedgerBalancesRes.data || []);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -538,6 +548,11 @@ export const DataProvider = ({ children }) => {
     return res.data;
   };
 
+  const deleteMonthlyProductionSummary = async (id) => {
+    await api.monthlyProductionApi.delete(id);
+    setMonthlyProductionSummaries(monthlyProductionSummaries.filter(s => s.id !== id));
+  };
+
   const getMonthlyProductionByMonth = async (year, month) => {
     const res = await api.monthlyProductionApi.getByMonth(year, month);
     return res.data;
@@ -582,7 +597,19 @@ export const DataProvider = ({ children }) => {
       }
       return [...prev, saved];
     });
+    const ledgerRes = await api.partnerLedgerApi.getAll();
+    const balancesRes = await api.partnerLedgerApi.getBalances();
+    setPartnerLedgerEntries(ledgerRes.data || []);
+    setPartnerLedgerBalances(balancesRes.data || []);
     return saved;
+  };
+
+  const addPartnerPayment = async (data) => {
+    const res = await api.partnerLedgerApi.addPayment(data);
+    setPartnerLedgerEntries([res.data, ...partnerLedgerEntries]);
+    const balancesRes = await api.partnerLedgerApi.getBalances();
+    setPartnerLedgerBalances(balancesRes.data || []);
+    return res.data;
   };
 
   // ============================================================
@@ -822,6 +849,8 @@ export const DataProvider = ({ children }) => {
     monthlyProductionSummaries,
     expenseSummaries,
     profitSharing,
+    partnerLedgerEntries,
+    partnerLedgerBalances,
 
     // Loading state
     loading,
@@ -912,6 +941,7 @@ export const DataProvider = ({ children }) => {
 
     // Monthly Production Summary
     saveMonthlyProduction,
+    deleteMonthlyProductionSummary,
     getMonthlyProductionByMonth,
 
     // Expense Summary
@@ -922,6 +952,7 @@ export const DataProvider = ({ children }) => {
     calculateProfitSharing,
     getProfitSharingByMonth,
     saveProfitSharing,
+    addPartnerPayment,
 
     // Equipment CRUD
     equipment,

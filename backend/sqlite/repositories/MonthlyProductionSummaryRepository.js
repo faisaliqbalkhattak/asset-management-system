@@ -33,10 +33,16 @@ class MonthlyProductionSummaryRepository extends BaseRepository {
         // Per CFT cost = Sold Amount / Sold CFT
         const perCftCost = soldCft > 0 ? soldAmount / soldCft : 0;
         
-        // Stock at Site = Net Aggregate - Sold
-        const stockCft = netAggregate - soldCft;
-        
-        // Cost of stocked material = Stock × Approx Cost
+        // Stock at Site (before allowance) = Net Aggregate - Sold
+        const stockCftRaw = netAggregate - soldCft;
+
+        // Allowance applied ONLY to remaining stock
+        const allowanceCft = stockCftRaw * allowancePercent / 100;
+
+        // Stock after allowance deduction
+        const stockCft = stockCftRaw - allowanceCft;
+
+        // Cost of stocked material = Stock (after allowance) × Approx Cost
         const stockedCost = stockCft * approxCost;
         
         // Total Cost = Actual (sold amount) + Stocked Cost
@@ -49,6 +55,7 @@ class MonthlyProductionSummaryRepository extends BaseRepository {
             sold_at_site_amount: soldAmount,
             approx_per_cft_cost: approxCost,
             allowance_percent: allowancePercent,
+            allowance_cft: Math.round(allowanceCft * 100) / 100,
             
             per_cft_cost: Math.round(perCftCost * 100) / 100,
             stock_at_site_cft: Math.round(stockCft * 100) / 100,

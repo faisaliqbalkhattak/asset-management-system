@@ -36,16 +36,22 @@ class ProfitSharingNewRepository extends BaseRepository {
         // Profit = Income - Expenses
         const profit = totalIncome - actualExpenses;
         
-        // Partner shares
-        const partner1Percentage = parseFloat(data.partner1_share_percentage) || 50;
-        const partner2Percentage = parseFloat(data.partner2_share_percentage) || 50;
-        
+        // Partner shares (4 partners, default 25% each)
+        const partner1Percentage = parseFloat(data.partner1_share_percentage) || 25;
+        const partner2Percentage = parseFloat(data.partner2_share_percentage) || 25;
+        const partner3Percentage = parseFloat(data.partner3_share_percentage) || 25;
+        const partner4Percentage = parseFloat(data.partner4_share_percentage) || 25;
+
         const partner1Share = (profit * partner1Percentage) / 100;
         const partner2Share = (profit * partner2Percentage) / 100;
-        
-        // Each partner's share is split equally between two sub-partners
+        const partner3Share = (profit * partner3Percentage) / 100;
+        const partner4Share = (profit * partner4Percentage) / 100;
+
+        // Keep sub-partner amounts for backward compatibility (split equally)
         const partner1Sub1Amount = partner1Share / 2;
         const partner2Sub1Amount = partner2Share / 2;
+        const partner3Sub1Amount = partner3Share / 2;
+        const partner4Sub1Amount = partner4Share / 2;
 
         return {
             ...data,
@@ -55,7 +61,11 @@ class ProfitSharingNewRepository extends BaseRepository {
             partner1_share_amount: Math.round(partner1Share * 100) / 100,
             partner1_sub1_amount: Math.round(partner1Sub1Amount * 100) / 100,
             partner2_share_amount: Math.round(partner2Share * 100) / 100,
-            partner2_sub1_amount: Math.round(partner2Sub1Amount * 100) / 100
+            partner2_sub1_amount: Math.round(partner2Sub1Amount * 100) / 100,
+            partner3_share_amount: Math.round(partner3Share * 100) / 100,
+            partner3_sub1_amount: Math.round(partner3Sub1Amount * 100) / 100,
+            partner4_share_amount: Math.round(partner4Share * 100) / 100,
+            partner4_sub1_amount: Math.round(partner4Sub1Amount * 100) / 100
         };
     }
 

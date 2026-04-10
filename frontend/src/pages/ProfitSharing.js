@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
@@ -23,13 +23,25 @@ const ProfitSharing = () => {
     monthlyProductionSummaries = [], // Destructure this from context
     profitSharing = [],
     saveProfitSharing,
-    appSettings,
+    partnerLedgerEntries = [],
+    partnerLedgerBalances = [],
+    addPartnerPayment,
   } = useData();
 
   const [selectedMonth, setSelectedMonth] = useState(MONTH_NAMES[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [partnerAShare, setPartnerAShare] = useState(appSettings.partnerAShare);
-  const [partnerBShare, setPartnerBShare] = useState(appSettings.partnerBShare);
+  const [partnerShares, setPartnerShares] = useState({
+    partner1: 25,
+    partner2: 25,
+    partner3: 25,
+    partner4: 25,
+  });
+  const [paymentForm, setPaymentForm] = useState({
+    partner_id: '1',
+    entry_date: new Date().toISOString().split('T')[0],
+    amount: '',
+    notes: '',
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -162,9 +174,11 @@ const ProfitSharing = () => {
     let net_aggregate = 0;        // Net production after deductions
     let sold_qty_cft = 0;         // How many CFT were sold
     let sold_total_amount = 0;    // Total cash received from sales (PKR)
-    let stock_qty_cft = 0;        // Remaining stock = production - sold
+    let stock_qty_cft = 0;        // Remaining stock (after allowance)
+    let stock_qty_raw = 0;        // Remaining stock before allowance
     let stock_rate_per_cft = 0;   // Expected value per CFT of remaining stock
     let sold_rate_per_cft = 0;    // Per CFT price at which we sold = sold_amount/sold_qty
+    let allowance_cft = 0;
 
     // Sum daily production entries
     filtered.forEach(p => {
@@ -187,9 +201,12 @@ const ProfitSharing = () => {
       sold_total_amount = parseFloat(summary.sold_at_site_amount) || 0;
       stock_qty_cft = parseFloat(summary.stock_at_site_cft) || 0;
       stock_rate_per_cft = parseFloat(summary.approx_per_cft_cost) || 0;
+      allowance_cft = parseFloat(summary.allowance_cft) || 0;
+      stock_qty_raw = stock_qty_cft + allowance_cft;
     } else {
       // No saved summary — stock is everything produced, nothing sold
       stock_qty_cft = net_aggregate;
+      stock_qty_raw = net_aggregate;
     }
 
     // Derived calculations
@@ -204,6 +221,8 @@ const ProfitSharing = () => {
       sold_total_amount,      // Cash received from sales
       sold_rate_per_cft,      // Per-CFT selling price
       stock_qty_cft,          // Remaining stock quantity
+      stock_qty_raw,          // Remaining before allowance
+      allowance_cft,
       stock_rate_per_cft,     // Per-CFT expected cost of stock
       stock_total_value,      // Total value of remaining stock
       total_revenue,          // Grand total = Cash Sales + Stock Value
@@ -218,20 +237,36 @@ const ProfitSharing = () => {
   // Profit = (Cash Sales + Stock Value) - Expenses
   // Or Profit = Gross Value Generated - Expenses
   const netProfit = monthlyProduction.gross_value_generated - monthlyExpenses.total;
-  const partnerAAmount = (netProfit * partnerAShare / 100);
-  const partnerBAmount = (netProfit * partnerBShare / 100);
+  const partner1Amount = (netProfit * (parseFloat(partnerShares.partner1) || 0) / 100);
+  const partner2Amount = (netProfit * (parseFloat(partnerShares.partner2) || 0) / 100);
+  const partner3Amount = (netProfit * (parseFloat(partnerShares.partner3) || 0) / 100);
+  const partner4Amount = (netProfit * (parseFloat(partnerShares.partner4) || 0) / 100);
+  const shareTotal =
+    (parseFloat(partnerShares.partner1) || 0) +
+    (parseFloat(partnerShares.partner2) || 0) +
+    (parseFloat(partnerShares.partner3) || 0) +
+    (parseFloat(partnerShares.partner4) || 0);
 
-  // Auto-balance shares
-  const handleShareChange = (partner, value) => {
-    const newValue = Math.min(100, Math.max(0, parseFloat(value) || 0));
-    if (partner === 'A') {
-      setPartnerAShare(newValue);
-      setPartnerBShare(100 - newValue);
-    } else {
-      setPartnerBShare(newValue);
-      setPartnerAShare(100 - newValue);
+  const currentRecord = useMemo(() => {
+    return profitSharing.find((ps) => {
+      const month = ps.period_month || ps.month;
+      const year = ps.period_year || ps.year;
+      return month === selectedMonth && String(year) === String(selectedYear);
+    });
+  }, [profitSharing, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    if (!currentRecord) {
+      setPartnerShares({ partner1: 25, partner2: 25, partner3: 25, partner4: 25 });
+      return;
     }
-  };
+    setPartnerShares({
+      partner1: currentRecord.partner1_share_percentage ?? 25,
+      partner2: currentRecord.partner2_share_percentage ?? 25,
+      partner3: currentRecord.partner3_share_percentage ?? 25,
+      partner4: currentRecord.partner4_share_percentage ?? 25,
+    });
+  }, [currentRecord]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -246,10 +281,14 @@ const ProfitSharing = () => {
         total_revenue: monthlyProduction.gross_value_generated,
         total_expenses: monthlyExpenses.total,
         net_profit: netProfit,
-        partner_a_share: partnerAShare,
-        partner_b_share: partnerBShare,
-        partner_a_amount: partnerAAmount,
-        partner_b_amount: partnerBAmount,
+        partner1_share_percentage: parseFloat(partnerShares.partner1) || 0,
+        partner2_share_percentage: parseFloat(partnerShares.partner2) || 0,
+        partner3_share_percentage: parseFloat(partnerShares.partner3) || 0,
+        partner4_share_percentage: parseFloat(partnerShares.partner4) || 0,
+        partner1_share_amount: partner1Amount,
+        partner2_share_amount: partner2Amount,
+        partner3_share_amount: partner3Amount,
+        partner4_share_amount: partner4Amount,
         net_aggregate_cft: monthlyProduction.net_aggregate,
         sold_cft: monthlyProduction.sold_cft,
         sold_amount: monthlyProduction.sale_amount,
@@ -420,7 +459,15 @@ const ProfitSharing = () => {
             <div className="bg-amber-50 p-2 rounded -mx-2 my-2">
               <div className="text-xs text-amber-600 font-semibold uppercase tracking-wider mb-1">Remaining Stock</div>
               <div className="flex justify-between py-1 border-b border-amber-100">
-                <span className="text-amber-800">Stock Quantity</span>
+                <span className="text-amber-800">Stock (Before Allowance)</span>
+                <span className="font-bold text-amber-700">{formatCurrency(monthlyProduction.stock_qty_raw)} CFT</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-amber-100">
+                <span className="text-amber-800">Allowance on Remaining</span>
+                <span className="font-bold text-amber-700">-{formatCurrency(monthlyProduction.allowance_cft)} CFT</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-amber-100">
+                <span className="text-amber-800">Stock (After Allowance)</span>
                 <span className="font-bold text-amber-700">{formatCurrency(monthlyProduction.stock_qty_cft)} CFT</span>
               </div>
               <div className="flex justify-between py-1 border-b border-amber-100">
@@ -449,60 +496,77 @@ const ProfitSharing = () => {
       {/* Partner Share Calculation */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Partner Share Distribution</h3>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div>
-            <Label htmlFor="partnerAShare">Partner A Share (%)</Label>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+            <div className="text-sm font-medium text-blue-800">Partner 1</div>
+            <Label className="mt-2">Share %</Label>
             <Input
               type="number"
-              id="partnerAShare"
-              value={partnerAShare}
-              onChange={(e) => handleShareChange('A', e.target.value)}
+              value={partnerShares.partner1}
+              onChange={(e) => setPartnerShares(prev => ({ ...prev, partner1: e.target.value }))}
               min="0"
               max="100"
-              className="bg-blue-50"
+              className="bg-white"
             />
+            <div className="text-lg font-bold text-blue-700">PKR {formatCurrency(partner1Amount)}</div>
+            <div className="text-xs text-blue-700 mt-1">Balance: PKR {formatCurrency((partnerLedgerBalances.find(b => b.partner_id === 1)?.balance) || 0)}</div>
           </div>
-          <div>
-            <Label>Partner A Amount</Label>
-            <Input
-              type="text"
-              value={`PKR ${formatCurrency(partnerAAmount)}`}
-              readOnly
-              className={`font-bold ${partnerAAmount >= 0 ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}`}
-            />
-          </div>
-          <div>
-            <Label htmlFor="partnerBShare">Partner B Share (%)</Label>
+
+          <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+            <div className="text-sm font-medium text-purple-800">Partner 2</div>
+            <Label className="mt-2">Share %</Label>
             <Input
               type="number"
-              id="partnerBShare"
-              value={partnerBShare}
-              onChange={(e) => handleShareChange('B', e.target.value)}
+              value={partnerShares.partner2}
+              onChange={(e) => setPartnerShares(prev => ({ ...prev, partner2: e.target.value }))}
               min="0"
               max="100"
-              className="bg-purple-50"
+              className="bg-white"
             />
+            <div className="text-lg font-bold text-purple-700">PKR {formatCurrency(partner2Amount)}</div>
+            <div className="text-xs text-purple-700 mt-1">Balance: PKR {formatCurrency((partnerLedgerBalances.find(b => b.partner_id === 2)?.balance) || 0)}</div>
           </div>
-          <div>
-            <Label>Partner B Amount</Label>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+            <div className="text-sm font-medium text-amber-800">Partner 3</div>
+            <Label className="mt-2">Share %</Label>
             <Input
-              type="text"
-              value={`PKR ${formatCurrency(partnerBAmount)}`}
-              readOnly
-              className={`font-bold ${partnerBAmount >= 0 ? 'bg-purple-100 text-purple-800' : 'bg-orange-100 text-orange-800'}`}
+              type="number"
+              value={partnerShares.partner3}
+              onChange={(e) => setPartnerShares(prev => ({ ...prev, partner3: e.target.value }))}
+              min="0"
+              max="100"
+              className="bg-white"
             />
+            <div className="text-lg font-bold text-amber-700">PKR {formatCurrency(partner3Amount)}</div>
+            <div className="text-xs text-amber-700 mt-1">Balance: PKR {formatCurrency((partnerLedgerBalances.find(b => b.partner_id === 3)?.balance) || 0)}</div>
+          </div>
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+            <div className="text-sm font-medium text-emerald-800">Partner 4</div>
+            <Label className="mt-2">Share %</Label>
+            <Input
+              type="number"
+              value={partnerShares.partner4}
+              onChange={(e) => setPartnerShares(prev => ({ ...prev, partner4: e.target.value }))}
+              min="0"
+              max="100"
+              className="bg-white"
+            />
+            <div className="text-lg font-bold text-emerald-700">PKR {formatCurrency(partner4Amount)}</div>
+            <div className="text-xs text-emerald-700 mt-1">Balance: PKR {formatCurrency((partnerLedgerBalances.find(b => b.partner_id === 4)?.balance) || 0)}</div>
           </div>
         </div>
 
         <div className={`p-3 rounded-md text-sm font-medium mb-4 ${
-          partnerAShare + partnerBShare === 100
+          shareTotal === 100
             ? 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          {partnerAShare + partnerBShare === 100
-            ? `✓ Shares total: ${partnerAShare + partnerBShare}% (Valid)`
-            : `✗ Shares total: ${partnerAShare + partnerBShare}% (Must equal exactly 100%)`
+          {shareTotal === 100
+            ? `✓ Shares total: ${shareTotal}% (Valid)`
+            : `✗ Shares total: ${shareTotal}% (Must equal exactly 100%)`
           }
         </div>
 
@@ -521,7 +585,7 @@ const ProfitSharing = () => {
         <div className="flex justify-end">
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || partnerAShare + partnerBShare !== 100}
+            disabled={isSubmitting || shareTotal !== 100}
           >
             {isSubmitting ? 'Saving...' : 'Save Profit Sharing'}
           </Button>
@@ -541,8 +605,10 @@ const ProfitSharing = () => {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Expenses</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Profit</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Partner A</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase">Partner B</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Partner 1 (Share)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase">Partner 2 (Share)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-amber-600 uppercase">Partner 3 (Share)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-emerald-600 uppercase">Partner 4 (Share)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Production</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost/CFT</th>
               </tr>
@@ -550,7 +616,7 @@ const ProfitSharing = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {profitSharing.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
                     No profit sharing records yet
                   </td>
                 </tr>
@@ -568,10 +634,10 @@ const ProfitSharing = () => {
                     const revenue = ps.total_income || ps.total_revenue || 0;
                     const expenses = ps.actual_expenses || ps.total_expenses || 0;
                     const netProfit = ps.profit || ps.net_profit || (revenue - expenses);
-                    const partnerAAmount = ps.partner1_share_amount || ps.partner_a_amount || 0;
-                    const partnerAShare = ps.partner1_share_percentage || ps.partner_a_share || 50;
-                    const partnerBAmount = ps.partner2_share_amount || ps.partner_b_amount || 0;
-                    const partnerBShare = ps.partner2_share_percentage || ps.partner_b_share || 50;
+                    const partner1Amount = ps.partner1_share_amount || 0;
+                    const partner2Amount = ps.partner2_share_amount || 0;
+                    const partner3Amount = ps.partner3_share_amount || 0;
+                    const partner4Amount = ps.partner4_share_amount || 0;
                     const production = ps.stock_at_site_cft || ps.net_aggregate_cft || 0;
                     const costPerCft = ps.estimated_rate || ps.cost_per_cft || 0;
                     return (
@@ -583,10 +649,16 @@ const ProfitSharing = () => {
                         {formatCurrency(netProfit)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-blue-700 font-medium">
-                        {formatCurrency(partnerAAmount)} ({partnerAShare}%)
+                        {formatCurrency(partner1Amount)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-purple-700 font-medium">
-                        {formatCurrency(partnerBAmount)} ({partnerBShare}%)
+                        {formatCurrency(partner2Amount)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-amber-700 font-medium">
+                        {formatCurrency(partner3Amount)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-emerald-700 font-medium">
+                        {formatCurrency(partner4Amount)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-600">
                         {formatCurrency(production)} CFT
@@ -597,6 +669,169 @@ const ProfitSharing = () => {
                     </tr>
                     );
                   })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Partner Ledger */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Partner Ledger (Shares & Payments)</h3>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await addPartnerPayment({
+              partner_id: paymentForm.partner_id,
+              entry_date: paymentForm.entry_date,
+              amount: paymentForm.amount,
+              notes: paymentForm.notes,
+            });
+            setPaymentForm({
+              partner_id: '1',
+              entry_date: new Date().toISOString().split('T')[0],
+              amount: '',
+              notes: '',
+            });
+          }}
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4"
+        >
+          <div>
+            <Label>Partner</Label>
+            <Select
+              value={paymentForm.partner_id}
+              onChange={(e) => setPaymentForm(prev => ({ ...prev, partner_id: e.target.value }))}
+            >
+              <option value="1">Partner 1</option>
+              <option value="2">Partner 2</option>
+              <option value="3">Partner 3</option>
+              <option value="4">Partner 4</option>
+            </Select>
+          </div>
+          <div>
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={paymentForm.entry_date}
+              onChange={(e) => setPaymentForm(prev => ({ ...prev, entry_date: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Amount</Label>
+            <Input
+              type="number"
+              value={paymentForm.amount}
+              onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Input
+              type="text"
+              value={paymentForm.notes}
+              onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="md:col-span-4 flex justify-end">
+            <Button type="submit">Add Payment</Button>
+          </div>
+        </form>
+
+        {/* Totals by Partner */}
+        <div className="overflow-x-auto mb-6">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Partner</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Allocated</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Paid</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {partnerLedgerBalances.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-500">No balances found</td>
+                </tr>
+              ) : (
+                partnerLedgerBalances.map((row) => (
+                  <tr key={row.partner_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-900">Partner {row.partner_id}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(row.total_share)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(row.total_paid)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(row.balance)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Allocations (Share Entries) */}
+        <div className="overflow-x-auto mb-6">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Allocations (Share Entries)</h4>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Partner</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {partnerLedgerEntries.filter(e => e.entry_type === 'SHARE').length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-4 text-center text-gray-500">No allocation entries found</td>
+                </tr>
+              ) : (
+                partnerLedgerEntries
+                  .filter(e => e.entry_type === 'SHARE')
+                  .map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.entry_date}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{entry.period_month ? `${entry.period_month} ${entry.period_year || ''}` : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">Partner {entry.partner_id}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(entry.amount)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.notes || '-'}</td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Payments */}
+        <div className="overflow-x-auto">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Payments</h4>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Partner</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {partnerLedgerEntries.filter(e => e.entry_type === 'PAYMENT').length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-500">No payment entries found</td>
+                </tr>
+              ) : (
+                partnerLedgerEntries
+                  .filter(e => e.entry_type === 'PAYMENT')
+                  .map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.entry_date}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">Partner {entry.partner_id}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(entry.amount)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.notes || '-'}</td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
