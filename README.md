@@ -17,7 +17,7 @@ An offline desktop application for managing plant and quarry operations — equi
 | Module | Description |
 |--------|-------------|
 | **Master Data** | Register equipment (generators, excavators, loaders, dumpers), employees, and expense categories. All downstream reports auto-update when masters change. |
-| **Daily Entries** | Tabbed forms for generators, excavators, loaders, dumpers, blasting material, langar, plant expenses, misc expenses, and salaries. |
+| **Daily Entries** | Tabbed forms for generators, excavators, loaders, dumpers, blasting material, plant mess, plant expenses, misc expenses, and salaries. |
 | **Production** | Daily gravel-to-aggregate tracking with clay/dust deduction. Monthly allowance, sales, and stock valuation management. Edit and delete past entries. |
 | **Monthly Summary** | Dynamic expense table with columns generated from registered equipment. Misc expenses tracked separately and excluded from totals. |
 | **Yearly Summary** | Annual expense breakdown by month with quarterly analysis. Categories driven entirely by master data. |
@@ -89,6 +89,8 @@ npm run dist
 ```
 
 The packaged application will appear in `electron/dist/`.
+
+To try the Windows installer, download the `.exe` from the repo and run it. The database is created automatically in the same directory where you download the app.
 
 ## Project Structure
 
