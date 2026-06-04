@@ -652,7 +652,7 @@ function createTables() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS langar_expense (
+    CREATE TABLE IF NOT EXISTS plant_mess_expense (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         expense_date DATE NOT NULL,
         day_name TEXT,
@@ -699,6 +699,8 @@ function createTables() {
         fuel_amount REAL DEFAULT 0,
         rent_per_day REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
+            misc_fuel_qty REAL DEFAULT 0,
+            misc_fuel_rate REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -764,6 +766,8 @@ function createTables() {
         total_trips INTEGER DEFAULT 0,
         total_cft REAL DEFAULT 0,
         trip_amount REAL DEFAULT 0,
+        misc_fuel_qty REAL DEFAULT 0,
+        misc_fuel_rate REAL DEFAULT 0,
         misc_expense REAL DEFAULT 0,
         misc_description TEXT,
         misc_expense_2 REAL DEFAULT 0,
@@ -800,7 +804,7 @@ function createTables() {
         dumper_taj656_total REAL DEFAULT 0,
         dumper_tae601_total REAL DEFAULT 0,
         blasting_material_total REAL DEFAULT 0,
-        langar_total REAL DEFAULT 0,
+        plant_mess_total REAL DEFAULT 0,
         plant_expense_total REAL DEFAULT 0,
         human_resource_total REAL DEFAULT 0,
         misc_expense_total REAL DEFAULT 0,
@@ -936,16 +940,34 @@ function createTables() {
         // Misc expense 2 columns for dumper
         `ALTER TABLE dumper_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
         `ALTER TABLE dumper_operation ADD COLUMN misc_description_2 TEXT`,
+        // Dumper misc fuel columns
+        `ALTER TABLE dumper_operation ADD COLUMN misc_fuel_qty REAL DEFAULT 0`,
+        `ALTER TABLE dumper_operation ADD COLUMN misc_fuel_rate REAL DEFAULT 0`,
         // Generator: fuel consumption rate per hour
         `ALTER TABLE generator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
+        // Generator: remarks text
+        `ALTER TABLE generator_operation ADD COLUMN remarks TEXT`,
         // Excavator: fuel consumption rate per hour
         `ALTER TABLE excavator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
         // Expense categories: category_type for sub-categories
         `ALTER TABLE expense_categories ADD COLUMN category_type TEXT DEFAULT 'MAIN'`,
+        // Plant mess: rename table and monthly summary column
+        `ALTER TABLE langar_expense RENAME TO plant_mess_expense`,
+        `ALTER TABLE monthly_expense_summary RENAME COLUMN langar_total TO plant_mess_total`,
+        // Plant mess: fallback column + data copy (for older SQLite)
+        `ALTER TABLE monthly_expense_summary ADD COLUMN plant_mess_total REAL DEFAULT 0`,
+        `UPDATE monthly_expense_summary SET plant_mess_total = langar_total WHERE plant_mess_total = 0`,
+        // Plant mess: fallback table data copy
+        `INSERT INTO plant_mess_expense (id, expense_date, day_name, description, amount, remarks, created_at, updated_at)
+         SELECT id, expense_date, day_name, description, amount, remarks, created_at, updated_at FROM langar_expense`,
+        // Rename category code for Plant Mess
+        `UPDATE expense_categories SET category_code = 'PLANT_MESS', category_name = 'Plant Mess' WHERE category_code = 'LANGAR'`,
         // Monthly production summary: allowance_percent for monthly-level allowance deduction
         `ALTER TABLE monthly_production_summary ADD COLUMN allowance_percent REAL DEFAULT 0`,
         // Monthly production summary: allowance_cft for stock-level allowance deduction
         `ALTER TABLE monthly_production_summary ADD COLUMN allowance_cft REAL DEFAULT 0`,
+        // Rename Langar category display name (legacy)
+        `UPDATE expense_categories SET category_name = 'Plant Mess' WHERE category_code IN ('LANGAR', 'PLANT_MESS')`,
         // Profit sharing: partner paid amounts and extra partners
         `ALTER TABLE profit_sharing ADD COLUMN partner1_paid_amount REAL DEFAULT 0`,
         `ALTER TABLE profit_sharing ADD COLUMN partner2_paid_amount REAL DEFAULT 0`,

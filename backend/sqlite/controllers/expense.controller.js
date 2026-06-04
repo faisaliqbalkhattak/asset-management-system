@@ -78,26 +78,70 @@ const getCategory = asyncHandler(async (req, res, next) => {
 const createCategory = asyncHandler(async (req, res, next) => {
     // Accept both name (frontend) and category_name (API)
     const categoryName = req.body.category_name || req.body.name;
+    const categoryType = req.body.category_type || 'MAIN';
     let categoryCode = req.body.category_code;
 
     if (!categoryName) {
         return next(new ErrorResponse('Please provide category name', 400));
     }
 
+    const normalizedName = String(categoryName).trim();
+
     // Auto-generate category_code if not provided
     if (!categoryCode) {
-        categoryCode = categoryName.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 20);
+        const sanitizedName = normalizedName.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        const baseCode = categoryType !== 'MAIN'
+            ? `${categoryType}_${sanitizedName}`
+            : sanitizedName;
+        categoryCode = baseCode.substring(0, 40);
     }
 
-    // Check if code exists
-    const existing = ExpenseCategoryRepository.findByCode(categoryCode);
-    if (existing) {
+    const existingByName = ExpenseCategoryRepository.findByNameAndType(normalizedName, categoryType);
+    if (existingByName && existingByName.is_active === 1) {
+        return next(new ErrorResponse(`Category "${normalizedName}" already exists`, 400));
+    }
+
+    const existingByCode = ExpenseCategoryRepository.findByCode(categoryCode);
+    if (existingByCode && existingByCode.is_active === 1) {
         return next(new ErrorResponse(`Category with code ${categoryCode} already exists`, 400));
+    }
+
+    if (existingByCode && existingByCode.is_active === 0) {
+        const restored = ExpenseCategoryRepository.update(existingByCode.id, {
+            category_code: categoryCode,
+            category_name: normalizedName,
+            category_type: categoryType,
+            description: req.body.description || null,
+            color: req.body.color || null,
+            is_active: 1,
+        });
+        return res.status(200).json({
+            success: true,
+            data: restored
+        });
+    }
+
+    if (existingByName && existingByName.is_active === 0) {
+        const restored = ExpenseCategoryRepository.update(existingByName.id, {
+            category_code: categoryCode,
+            category_name: normalizedName,
+            category_type: categoryType,
+            description: req.body.description || null,
+            color: req.body.color || null,
+            is_active: 1,
+        });
+        return res.status(200).json({
+            success: true,
+            data: restored
+        });
     }
 
     const category = ExpenseCategoryRepository.create({
         category_code: categoryCode,
-        category_name: categoryName
+        category_name: normalizedName,
+        category_type: categoryType,
+        description: req.body.description || null,
+        color: req.body.color || null,
     });
 
     res.status(201).json({
@@ -118,7 +162,13 @@ const updateCategory = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse(`Category not found with id ${req.params.id}`, 404));
     }
 
-    category = ExpenseCategoryRepository.update(req.params.id, req.body);
+    const updateData = { ...req.body };
+    if (Object.prototype.hasOwnProperty.call(updateData, 'name')) {
+        updateData.category_name = updateData.name;
+        delete updateData.name;
+    }
+
+    category = ExpenseCategoryRepository.update(req.params.id, updateData);
 
     res.status(200).json({
         success: true,

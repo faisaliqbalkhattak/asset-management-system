@@ -2,7 +2,7 @@
 // PLANT EXPENSE REPOSITORY
 // =====================================================
 // Track plant-related expenses by description and amount
-// Same structure as langar
+// Same structure as plant mess
 // Sum by month for summary
 // =====================================================
 

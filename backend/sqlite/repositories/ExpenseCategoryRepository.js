@@ -1,6 +1,6 @@
 // =====================================================
 // EXPENSE CATEGORY REPOSITORY
-// Expense categories (Langar, Plant Exp, etc.)
+// Expense categories (Plant Mess, Plant Exp, etc.)
 // Also stores sub-categories for dropdown items per tab
 // =====================================================
 
@@ -30,6 +30,13 @@ class ExpenseCategoryRepository extends BaseRepository {
         return this.findOne({ category_code: code });
     }
 
+    findByNameAndType(name, type) {
+        return this.rawOne(
+            `SELECT * FROM ${this.tableName} WHERE LOWER(category_name) = LOWER(?) AND category_type = ? LIMIT 1`,
+            [name, type]
+        );
+    }
+
     /**
      * Find categories by type (MAIN, BLASTING_ITEM, PLANT_EXPENSE, MISC_EXPENSE)
      */
@@ -43,36 +50,26 @@ class ExpenseCategoryRepository extends BaseRepository {
      * Seed default categories and sub-categories
      */
     seedDefaults() {
-        // Main expense categories
+        // Default expense categories for blasting and plant expenses
         const defaults = [
-            { category_code: 'LANGAR', category_name: 'Langar', category_type: 'MAIN' },
-            { category_code: 'PLANT_EXP', category_name: 'Plant Expenses', category_type: 'MAIN' },
-            { category_code: 'MISC', category_name: 'Miscellaneous Expenses', category_type: 'MAIN' },
-            { category_code: 'GENERATOR', category_name: 'Generator', category_type: 'MAIN' },
-            { category_code: 'EXCAVATOR', category_name: 'Excavator', category_type: 'MAIN' },
-            { category_code: 'LOADER', category_name: 'Loader', category_type: 'MAIN' },
-            { category_code: 'DUMPER', category_name: 'Dumper', category_type: 'MAIN' },
-            { category_code: 'BLASTING', category_name: 'Blasting Material', category_type: 'MAIN' },
-            { category_code: 'HR', category_name: 'Human Resource', category_type: 'MAIN' },
             // Blasting material items (dropdown options for Blasting Material tab)
-            { category_code: 'BLAST_GELATIN', category_name: 'Gelatin', category_type: 'BLASTING_ITEM' },
+            { category_code: 'BLAST_FUEL', category_name: 'Fuel Consumed Blasting', category_type: 'BLASTING_ITEM' },
+            { category_code: 'BLAST_WIRE', category_name: 'Blasting Wire', category_type: 'BLASTING_ITEM' },
             { category_code: 'BLAST_DETONATOR', category_name: 'Detonator', category_type: 'BLASTING_ITEM' },
-            { category_code: 'BLAST_FUSE_WIRE', category_name: 'Fuse Wire', category_type: 'BLASTING_ITEM' },
-            { category_code: 'BLAST_SAFETY_FUSE', category_name: 'Safety Fuse', category_type: 'BLASTING_ITEM' },
-            { category_code: 'BLAST_POWDER', category_name: 'Blasting Powder', category_type: 'BLASTING_ITEM' },
-            { category_code: 'BLAST_OTHER', category_name: 'Other', category_type: 'BLASTING_ITEM' },
+            { category_code: 'BLAST_JAGGERY', category_name: 'Jaggery', category_type: 'BLASTING_ITEM' },
+            { category_code: 'BLAST_AMMONIUM_NITRATE', category_name: 'AN (Ammonium nitrate)', category_type: 'BLASTING_ITEM' },
             // Plant expense categories (dropdown options for Plant Expense tab)
-            { category_code: 'PLANT_MAINTENANCE', category_name: 'Maintenance', category_type: 'PLANT_EXPENSE' },
-            { category_code: 'PLANT_REPAIR', category_name: 'Repair', category_type: 'PLANT_EXPENSE' },
-            { category_code: 'PLANT_SPARE_PARTS', category_name: 'Spare Parts', category_type: 'PLANT_EXPENSE' },
-            { category_code: 'PLANT_ELECTRICAL', category_name: 'Electrical', category_type: 'PLANT_EXPENSE' },
-            { category_code: 'PLANT_OTHER', category_name: 'Other', category_type: 'PLANT_EXPENSE' },
-            // Misc expense categories (dropdown options for Misc Expense tab)
-            { category_code: 'MISC_GENERAL', category_name: 'General', category_type: 'MISC_EXPENSE' },
-            { category_code: 'MISC_TRANSPORT', category_name: 'Transport', category_type: 'MISC_EXPENSE' },
-            { category_code: 'MISC_OFFICE', category_name: 'Office', category_type: 'MISC_EXPENSE' },
-            { category_code: 'MISC_UTILITY', category_name: 'Utility', category_type: 'MISC_EXPENSE' },
-            { category_code: 'MISC_OTHER', category_name: 'Other', category_type: 'MISC_EXPENSE' },
+            { category_code: 'PLANT_MESS', category_name: 'Plant Mess', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_EXP', category_name: 'Plant Expenses', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_MISC', category_name: 'Miscellaneous Expenses', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_UTILITIES', category_name: 'Utilities', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_TRANSPORT', category_name: 'Transport Charges', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_REPAIR_MAINT', category_name: 'Repairs & Maintenance', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_ELECTRICITY', category_name: 'Electricity Bill', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_TIP_LAB', category_name: 'Tip to lab', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_ACCESSORIES', category_name: 'Plant accessories', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_RENT', category_name: 'Rent of plant.', category_type: 'PLANT_EXPENSE' },
+            { category_code: 'PLANT_STAFF_OVERTIME', category_name: 'Staff overtime', category_type: 'PLANT_EXPENSE' },
         ];
         
         const inserted = [];

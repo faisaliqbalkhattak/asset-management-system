@@ -29,7 +29,7 @@ class MonthlyExpenseSummaryRepository extends BaseRepository {
         const dumperTae601Total = parseFloat(data.dumper_tae601_total) || 0;
         
         const blastingTotal = parseFloat(data.blasting_material_total) || 0;
-        const langarTotal = parseFloat(data.langar_total) || 0;
+        const plantMessTotal = parseFloat(data.plant_mess_total) || 0;
         const plantExpTotal = parseFloat(data.plant_expense_total) || 0;
         const humanResTotal = parseFloat(data.human_resource_total) || 0;
         const miscExpTotal = parseFloat(data.misc_expense_total) || 0;
@@ -37,7 +37,7 @@ class MonthlyExpenseSummaryRepository extends BaseRepository {
         const grandTotal = generatorTotal + excavatorTotal + loadersTotal +
             dumperTkr219Total + dumperTac388Total + dumperTab959Total + 
             dumperTaj656Total + dumperTae601Total +
-            blastingTotal + langarTotal + plantExpTotal + humanResTotal + miscExpTotal;
+            blastingTotal + plantMessTotal + plantExpTotal + humanResTotal + miscExpTotal;
 
         return {
             ...data,
