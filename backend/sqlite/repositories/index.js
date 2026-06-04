@@ -21,7 +21,7 @@ const GeneratorOperationRepository = require('./GeneratorOperationRepository');
 const ExcavatorOperationRepository = require('./ExcavatorOperationRepository');
 const LoaderOperationNewRepository = require('./LoaderOperationNewRepository');
 const BlastingMaterialNewRepository = require('./BlastingMaterialNewRepository');
-const LangarExpenseRepository = require('./LangarExpenseRepository');
+const PlantMessExpenseRepository = require('./PlantMessExpenseRepository');
 const PlantExpenseRepository = require('./PlantExpenseRepository');
 const MiscExpenseGeneralRepository = require('./MiscExpenseGeneralRepository');
 const DumperOperationRepository = require('./DumperOperationRepository');
@@ -61,8 +61,8 @@ module.exports = {
     // Blasting Material
     BlastingMaterialNewRepository,
     
-    // Langar
-    LangarExpenseRepository,
+    // Plant Mess
+    PlantMessExpenseRepository,
     
     // Plant Expenses
     PlantExpenseRepository,

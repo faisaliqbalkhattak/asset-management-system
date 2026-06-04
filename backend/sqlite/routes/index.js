@@ -11,7 +11,7 @@ const loaderRoutes = require('./loaders');
 const excavatorRoutes = require('./excavator');
 const generatorRoutes = require('./generator');
 const plantExpenseRoutes = require('./plant-expense');
-const langarRoutes = require('./langar');
+const plantMessRoutes = require('./plant-mess');
 const miscExpenseRoutes = require('./misc-expense');
 const blastingRoutes = require('./blasting');
 const humanResourceRoutes = require('./human-resource');
@@ -44,7 +44,7 @@ function initRouter() {
     router.use('/excavator', excavatorRoutes);
     router.use('/generator', generatorRoutes);
     router.use('/plant-expense', plantExpenseRoutes);
-    router.use('/langar', langarRoutes);
+    router.use('/plant-mess', plantMessRoutes);
     router.use('/misc-expense', miscExpenseRoutes);
     router.use('/blasting', blastingRoutes);
     router.use('/human-resource', humanResourceRoutes);

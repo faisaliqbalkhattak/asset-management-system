@@ -1,14 +1,14 @@
 // =====================================================
-// LANGAR EXPENSE ROUTES
+// PLANT MESS EXPENSE ROUTES
 // =====================================================
-// API routes for langar (food/mess) expenses
+// API routes for plant mess expenses
 // =====================================================
 
 const express = require('express');
 const router = express.Router();
-const { LangarExpenseRepository } = require('../repositories');
+const { PlantMessExpenseRepository } = require('../repositories');
 
-const repo = new LangarExpenseRepository();
+const repo = new PlantMessExpenseRepository();
 
 // GET all entries
 router.get('/', (req, res, next) => {

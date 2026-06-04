@@ -1,5 +1,5 @@
 // =====================================================
-// LANGAR EXPENSE REPOSITORY
+// PLANT MESS EXPENSE REPOSITORY
 // =====================================================
 // Track food/mess expenses by description and amount
 // Sum by month for summary
@@ -8,9 +8,9 @@
 const BaseRepository = require('./BaseRepository');
 const { get, all } = require('../db');
 
-class LangarExpenseRepository extends BaseRepository {
+class PlantMessExpenseRepository extends BaseRepository {
     constructor() {
-        super('langar_expense');
+        super('plant_mess_expense');
     }
 
     /**
@@ -22,7 +22,7 @@ class LangarExpenseRepository extends BaseRepository {
     }
 
     /**
-     * Create a new langar expense entry
+    * Create a new plant mess expense entry
      */
     create(data) {
         return super.create({
@@ -96,4 +96,4 @@ class LangarExpenseRepository extends BaseRepository {
     }
 }
 
-module.exports = LangarExpenseRepository;
+module.exports = PlantMessExpenseRepository;
