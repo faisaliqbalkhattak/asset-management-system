@@ -27,13 +27,15 @@ class LoaderOperationNewRepository extends BaseRepository {
      */
     resolveEquipmentId(data) {
         const cleaned = { ...data };
-        if (data.equipment_name) {
-            const equip = get(
-                `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'LOADER'`,
-                [data.equipment_name]
-            );
-            if (equip) {
-                cleaned.equipment_id = equip.id;
+        if (Object.prototype.hasOwnProperty.call(data, 'equipment_name')) {
+            if (data.equipment_name) {
+                const equip = get(
+                    `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'LOADER'`,
+                    [data.equipment_name]
+                );
+                if (equip) {
+                    cleaned.equipment_id = equip.id;
+                }
             }
             delete cleaned.equipment_name;
         }

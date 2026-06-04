@@ -45,18 +45,22 @@ class DumperOperationRepository extends BaseRepository {
      * total_trips = gravel_trips + clay_trips
      * total_cft = total_trips * cft_per_trip
      * trip_amount = total_cft * rate_per_cft
-     * total_amount = trip_amount (misc tracked separately, NOT added to total)
+         * misc_expense = misc_fuel_qty * misc_fuel_rate
+         * total_amount = trip_amount (misc tracked separately, NOT added to total)
      */
     calculateTotals(data) {
         const gravelTrips = parseInt(data.gravel_trips) || 0;
         const clayTrips = parseInt(data.clay_trips) || 0;
         const cftPerTrip = parseFloat(data.cft_per_trip) || 838;
         const ratePerCft = parseFloat(data.rate_per_cft) || 1.9;
+            const miscFuelQty = parseFloat(data.misc_fuel_qty) || 0;
+            const miscFuelRate = parseFloat(data.misc_fuel_rate) || 0;
 
         const totalTrips = gravelTrips + clayTrips;
         const totalCft = totalTrips * cftPerTrip;
         const tripAmount = totalCft * ratePerCft;
         const totalAmount = tripAmount;
+            const miscExpense = miscFuelQty * miscFuelRate;
 
         return {
             ...data,
@@ -64,7 +68,8 @@ class DumperOperationRepository extends BaseRepository {
             total_trips: totalTrips,
             total_cft: Math.round(totalCft * 100) / 100,
             trip_amount: Math.round(tripAmount * 100) / 100,
-            total_amount: Math.round(totalAmount * 100) / 100
+                misc_expense: Math.round(miscExpense * 100) / 100,
+                total_amount: Math.round(totalAmount * 100) / 100
         };
     }
 
