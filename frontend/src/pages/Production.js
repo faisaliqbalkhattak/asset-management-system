@@ -11,6 +11,7 @@ const Production = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [editingProductionId, setEditingProductionId] = useState(null);
+  const [visibleProductionCount, setVisibleProductionCount] = useState(20);
 
   // Monthly Sales Form State
   const [salesData, setSalesData] = useState({
@@ -732,7 +733,7 @@ const Production = () => {
               ) : (
                 [...dailyProductions]
                   .sort((a, b) => new Date(b.production_date) - new Date(a.production_date))
-                  .slice(0, 20)
+                  .slice(0, visibleProductionCount)
                   .map((prod) => (
                     <tr key={prod.id} className="hover:bg-emerald-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{prod.production_date}</td>
@@ -768,6 +769,28 @@ const Production = () => {
             </tbody>
           </table>
         </div>
+        {dailyProductions.length > 0 && (
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-white">
+            {visibleProductionCount < dailyProductions.length && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setVisibleProductionCount((count) => count + 20)}
+              >
+                Show more
+              </Button>
+            )}
+            {visibleProductionCount > 20 && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setVisibleProductionCount(20)}
+              >
+                Show less
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

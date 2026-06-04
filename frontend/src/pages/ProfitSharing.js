@@ -14,9 +14,8 @@ const ProfitSharing = () => {
     excavatorOperations = [],
     loaderOperations = [],
     blastingMaterials = [],
-    langarExpenses = [],
+    plantMessExpenses = [],
     plantExpenses = [],
-    miscExpenses = [],
     dumperOperations = [],
     salaries = [],
     dailyProductions = [],
@@ -30,6 +29,8 @@ const ProfitSharing = () => {
 
   const [selectedMonth, setSelectedMonth] = useState(MONTH_NAMES[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [historyMonth, setHistoryMonth] = useState('');
+  const [historyYear, setHistoryYear] = useState('');
   const [partnerShares, setPartnerShares] = useState({
     partner1: 25,
     partner2: 25,
@@ -54,9 +55,8 @@ const ProfitSharing = () => {
       ...excavatorOperations,
       ...loaderOperations,
       ...blastingMaterials,
-      ...langarExpenses,
+      ...plantMessExpenses,
       ...plantExpenses,
-      ...miscExpenses,
       ...dumperOperations,
       ...salaries,
       ...dailyProductions,
@@ -75,7 +75,7 @@ const ProfitSharing = () => {
     }
     return Array.from(years).sort((a, b) => b - a);
   }, [generatorOperations, excavatorOperations, loaderOperations, blastingMaterials,
-      langarExpenses, plantExpenses, miscExpenses, dumperOperations, salaries, dailyProductions]);
+      plantMessExpenses, plantExpenses, dumperOperations, salaries, dailyProductions]);
 
   // Calculate expenses for selected month/year
   const monthlyExpenses = useMemo(() => {
@@ -95,10 +95,9 @@ const ProfitSharing = () => {
       loaders: 0,
       dumpers: 0,
       blasting: 0,
-      langar: 0,
+      plant_mess: 0,
       plant_exp: 0,
       human_res: 0,
-      misc_exp: 0,
     };
 
     // Generator
@@ -121,17 +120,13 @@ const ProfitSharing = () => {
     blastingMaterials.filter(m => filterByMonth(m.purchase_date))
       .forEach(m => { expenses.blasting += parseFloat(m.total_amount) || 0; });
 
-    // Langar Expenses
-    langarExpenses.filter(e => filterByMonth(e.expense_date))
-      .forEach(e => { expenses.langar += parseFloat(e.amount) || 0; });
+    // Plant Mess Expenses
+    plantMessExpenses.filter(e => filterByMonth(e.expense_date))
+      .forEach(e => { expenses.plant_mess += parseFloat(e.amount) || 0; });
 
     // Plant Expenses
     plantExpenses.filter(e => filterByMonth(e.expense_date))
       .forEach(e => { expenses.plant_exp += parseFloat(e.amount) || 0; });
-
-    // Misc Expenses
-    miscExpenses.filter(e => filterByMonth(e.expense_date))
-      .forEach(e => { expenses.misc_exp += parseFloat(e.amount) || 0; });
 
     // Salaries (salary_month is YYYY-MM format)
     salaries.filter(s => {
@@ -143,7 +138,7 @@ const ProfitSharing = () => {
 
     return expenses;
   }, [selectedMonth, selectedYear, generatorOperations, excavatorOperations, loaderOperations,
-      dumperOperations, blastingMaterials, langarExpenses, plantExpenses, miscExpenses, salaries]);
+      dumperOperations, blastingMaterials, plantMessExpenses, plantExpenses, salaries]);
 
 // ================================================================
     // PRODUCTION & REVENUE - Monthly calculations
@@ -254,6 +249,23 @@ const ProfitSharing = () => {
       return month === selectedMonth && String(year) === String(selectedYear);
     });
   }, [profitSharing, selectedMonth, selectedYear]);
+
+  const historyRecords = useMemo(() => {
+    return [...profitSharing]
+      .filter((ps) => {
+        const month = ps.period_month || ps.month;
+        const year = ps.period_year || ps.year;
+        if (historyMonth && month !== historyMonth) return false;
+        if (historyYear && String(year) !== String(historyYear)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const yearA = a.period_year || a.year;
+        const yearB = b.period_year || b.year;
+        if (yearB !== yearA) return yearB - yearA;
+        return MONTH_NAMES.indexOf(b.period_month || b.month) - MONTH_NAMES.indexOf(a.period_month || a.month);
+      });
+  }, [profitSharing, historyMonth, historyYear]);
 
   useEffect(() => {
     if (!currentRecord) {
@@ -401,20 +413,16 @@ const ProfitSharing = () => {
               <span className="font-medium">PKR {formatCurrency(monthlyExpenses.blasting)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-gray-100">
-              <span className="text-gray-600">Langar</span>
-              <span className="font-medium">PKR {formatCurrency(monthlyExpenses.langar)}</span>
+              <span className="text-gray-600">Plant Mess</span>
+              <span className="font-medium">PKR {formatCurrency(monthlyExpenses.plant_mess)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-gray-100">
               <span className="text-gray-600">Plant Expense</span>
               <span className="font-medium">PKR {formatCurrency(monthlyExpenses.plant_exp)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-gray-100">
-              <span className="text-gray-600">Human Resources</span>
+              <span className="text-gray-600">Staff Salaries</span>
               <span className="font-medium">PKR {formatCurrency(monthlyExpenses.human_res)}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-gray-100">
-              <span className="text-gray-600">Misc Expenses</span>
-              <span className="font-medium">PKR {formatCurrency(monthlyExpenses.misc_exp)}</span>
             </div>
             <div className="flex justify-between py-2 font-bold text-lg text-red-700">
               <span>Total Expenses</span>
@@ -597,6 +605,36 @@ const ProfitSharing = () => {
         <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
           <h2 className="text-lg font-medium text-emerald-800">Profit Sharing History</h2>
         </div>
+        <div className="px-6 py-4 border-b border-gray-200 bg-white">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="w-48">
+              <Label htmlFor="historyMonth">Month</Label>
+              <Select
+                id="historyMonth"
+                value={historyMonth}
+                onChange={(e) => setHistoryMonth(e.target.value)}
+              >
+                <option value="">All Months</option>
+                {MONTH_NAMES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-32">
+              <Label htmlFor="historyYear">Year</Label>
+              <Select
+                id="historyYear"
+                value={historyYear}
+                onChange={(e) => setHistoryYear(e.target.value)}
+              >
+                <option value="">All Years</option>
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -614,21 +652,14 @@ const ProfitSharing = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {profitSharing.length === 0 ? (
+              {historyRecords.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
-                    No profit sharing records yet
+                    No profit sharing records found
                   </td>
                 </tr>
               ) : (
-                [...profitSharing]
-                  .sort((a, b) => {
-                    const yearA = a.period_year || a.year;
-                    const yearB = b.period_year || b.year;
-                    if (yearB !== yearA) return yearB - yearA;
-                    return MONTH_NAMES.indexOf(b.period_month || b.month) - MONTH_NAMES.indexOf(a.period_month || a.month);
-                  })
-                  .map((ps) => {
+                historyRecords.map((ps) => {
                     const month = ps.period_month || ps.month;
                     const year = ps.period_year || ps.year;
                     const revenue = ps.total_income || ps.total_revenue || 0;

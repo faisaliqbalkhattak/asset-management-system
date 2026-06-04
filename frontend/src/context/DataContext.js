@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../services/api';
 
+const BLASTING_CATEGORY_NAMES = [
+  'Fuel Consumed Blasting',
+  'Jaggery',
+  'AN (Ammonium nitrate)',
+  'Detonator',
+  'Tip to staff',
+];
+const PLANT_EXPENSE_CATEGORY_NAMES = [
+  'Repairs & Maintenance',
+  'Plant accessories',
+  'Plant Rent',
+];
+
 const DataContext = createContext(undefined);
 
 export const useData = () => {
@@ -28,14 +41,12 @@ export const DataProvider = ({ children }) => {
   // Blasting material purchases
   const [blastingMaterials, setBlastingMaterials] = useState([]);
   
-  // Langar expenses
-  const [langarExpenses, setLangarExpenses] = useState([]);
+  // Plant Mess expenses
+  const [plantMessExpenses, setPlantMessExpenses] = useState([]);
   
   // Plant expenses
   const [plantExpenses, setPlantExpenses] = useState([]);
   
-  // Misc expenses (general - separate table)
-  const [miscExpenses, setMiscExpenses] = useState([]);
   
   // Dumper operations (trips only)
   const [dumperOperations, setDumperOperations] = useState([]);
@@ -76,19 +87,23 @@ export const DataProvider = ({ children }) => {
   // Expense categories
   const [expenseCategories, setExpenseCategories] = useState([]);
 
-  // Computed: category lists for dropdown items - all use master expense categories
-  const allCategoryNames = useMemo(() => {
-    return expenseCategories.map(c => c.category_name).filter(Boolean);
-  }, [expenseCategories]);
+  // Computed: category lists for dropdown items by type
   const blastingItems = useMemo(() => {
-    return allCategoryNames.length > 0 ? allCategoryNames : ['Gelatin', 'Detonator', 'Fuse Wire', 'Safety Fuse', 'Blasting Powder', 'Other'];
-  }, [allCategoryNames]);
+    const names = expenseCategories
+      .filter(c => c.category_type === 'BLASTING_ITEM')
+      .filter(c => BLASTING_CATEGORY_NAMES.includes(c.category_name))
+      .map(c => c.category_name)
+      .filter(Boolean);
+    return names.length > 0 ? names : BLASTING_CATEGORY_NAMES;
+  }, [expenseCategories]);
   const plantExpenseCategories = useMemo(() => {
-    return allCategoryNames.length > 0 ? allCategoryNames : ['Maintenance', 'Repair', 'Spare Parts', 'Electrical', 'Other'];
-  }, [allCategoryNames]);
-  const miscExpenseCategories = useMemo(() => {
-    return allCategoryNames.length > 0 ? allCategoryNames : ['General', 'Transport', 'Office', 'Utility', 'Other'];
-  }, [allCategoryNames]);
+    const names = expenseCategories
+      .filter(c => c.category_type === 'PLANT_EXPENSE')
+      .filter(c => PLANT_EXPENSE_CATEGORY_NAMES.includes(c.category_name))
+      .map(c => c.category_name)
+      .filter(Boolean);
+    return names.length > 0 ? names : PLANT_EXPENSE_CATEGORY_NAMES;
+  }, [expenseCategories]);
 
   // eslint-disable-next-line no-unused-vars
   const [equipmentTypes, setEquipmentTypes] = useState(['GENERATOR', 'EXCAVATOR', 'LOADER', 'DUMPER']);
@@ -120,9 +135,8 @@ export const DataProvider = ({ children }) => {
         excavatorRes,
         loadersRes,
         blastingRes,
-        langarRes,
+        plantMessRes,
         plantRes,
-        miscRes,
         dumpersRes,
         dumperMiscRes,
         loaderMiscRes,
@@ -140,9 +154,8 @@ export const DataProvider = ({ children }) => {
         api.excavatorApi.getAll().catch(() => ({ data: [] })),
         api.loadersApi.getAll().catch(() => ({ data: [] })),
         api.blastingApi.getAll().catch(() => ({ data: [] })),
-        api.langarApi.getAll().catch(() => ({ data: [] })),
+        api.plantMessApi.getAll().catch(() => ({ data: [] })),
         api.plantExpenseApi.getAll().catch(() => ({ data: [] })),
-        api.miscExpenseApi.getAll().catch(() => ({ data: [] })),
         api.dumpersApi.getAll().catch(() => ({ data: [] })),
         api.dumperMiscApi.getAll().catch(() => ({ data: [] })),
         api.loaderMiscApi.getAll().catch(() => ({ data: [] })),
@@ -150,7 +163,7 @@ export const DataProvider = ({ children }) => {
         api.humanResourceSalaryApi.getAll().catch(() => ({ data: [] })),
         api.productionApi.getAll().catch(() => ({ data: [] })),
         api.equipmentApi.getAll().catch(() => ({ data: [] })),
-        api.expenseCategoryApi.getAll().catch(() => ({ data: [] })),
+        api.expenseCategoryApi.getActive().catch(() => ({ data: [] })),
         api.monthlyProductionApi.getAll().catch(() => ({ data: [] })),
         api.profitSharingApi.getAll().catch(() => ({ data: [] })),
         api.partnerLedgerApi.getAll().catch(() => ({ data: [] })),
@@ -161,9 +174,8 @@ export const DataProvider = ({ children }) => {
       setExcavatorOperations(excavatorRes.data || []);
       setLoaderOperations(loadersRes.data || []);
       setBlastingMaterials(blastingRes.data || []);
-      setLangarExpenses(langarRes.data || []);
+      setPlantMessExpenses(plantMessRes.data || []);
       setPlantExpenses(plantRes.data || []);
-      setMiscExpenses(miscRes.data || []);
       setDumperOperations(dumpersRes.data || []);
       setDumperMiscExpenses(dumperMiscRes.data || []);
       setLoaderMiscExpenses(loaderMiscRes.data || []);
@@ -305,27 +317,27 @@ export const DataProvider = ({ children }) => {
   };
 
   // ============================================================
-  // LANGAR EXPENSE CRUD
+  // PLANT MESS EXPENSE CRUD
   // ============================================================
-  const addLangarExpense = async (data) => {
-    const res = await api.langarApi.create(data);
-    setLangarExpenses([...langarExpenses, res.data]);
+  const addPlantMessExpense = async (data) => {
+    const res = await api.plantMessApi.create(data);
+    setPlantMessExpenses([...plantMessExpenses, res.data]);
     return res.data;
   };
 
-  const updateLangarExpense = async (id, data) => {
-    const res = await api.langarApi.update(id, data);
-    setLangarExpenses(langarExpenses.map(e => e.id === id ? res.data : e));
+  const updatePlantMessExpense = async (id, data) => {
+    const res = await api.plantMessApi.update(id, data);
+    setPlantMessExpenses(plantMessExpenses.map(e => e.id === id ? res.data : e));
     return res.data;
   };
 
-  const deleteLangarExpense = async (id) => {
-    await api.langarApi.delete(id);
-    setLangarExpenses(langarExpenses.filter(e => e.id !== id));
+  const deletePlantMessExpense = async (id) => {
+    await api.plantMessApi.delete(id);
+    setPlantMessExpenses(plantMessExpenses.filter(e => e.id !== id));
   };
 
-  const getLangarMonthly = async (year, month) => {
-    const res = await api.langarApi.getMonthly(year, month);
+  const getPlantMessMonthly = async (year, month) => {
+    const res = await api.plantMessApi.getMonthly(year, month);
     return res.data;
   };
 
@@ -354,30 +366,6 @@ export const DataProvider = ({ children }) => {
     return res.data;
   };
 
-  // ============================================================
-  // MISC EXPENSE CRUD (General - separate table)
-  // ============================================================
-  const addMiscExpense = async (data) => {
-    const res = await api.miscExpenseApi.create(data);
-    setMiscExpenses([...miscExpenses, res.data]);
-    return res.data;
-  };
-
-  const updateMiscExpense = async (id, data) => {
-    const res = await api.miscExpenseApi.update(id, data);
-    setMiscExpenses(miscExpenses.map(e => e.id === id ? res.data : e));
-    return res.data;
-  };
-
-  const deleteMiscExpense = async (id) => {
-    await api.miscExpenseApi.delete(id);
-    setMiscExpenses(miscExpenses.filter(e => e.id !== id));
-  };
-
-  const getMiscMonthly = async (year, month) => {
-    const res = await api.miscExpenseApi.getMonthly(year, month);
-    return res.data;
-  };
 
   // ============================================================
   // DUMPER OPERATIONS CRUD (trips only, misc tracked separately)
@@ -657,6 +645,12 @@ export const DataProvider = ({ children }) => {
   // ============================================================
   const getTransactions = useCallback(() => {
     const transactions = [];
+    const dumperNameById = (equipment || [])
+      .filter((e) => e.equipment_type === 'DUMPER')
+      .reduce((acc, e) => {
+        acc[e.id] = e.equipment_name;
+        return acc;
+      }, {});
 
     // Generator operations
     generatorOperations.forEach(op => {
@@ -712,6 +706,7 @@ export const DataProvider = ({ children }) => {
         operationId: m.id,
         date: m.purchase_date,
         modelType: 'Blasting Material',
+        subCategory: m.description,
         description: `${m.description} - ${m.quantity} @ ${m.rate}`,
         amount: m.total_amount || 0,
         month: new Date(m.purchase_date).toLocaleString('default', { month: 'long' }),
@@ -719,14 +714,14 @@ export const DataProvider = ({ children }) => {
       });
     });
 
-    // Langar expenses
-    langarExpenses.forEach(e => {
+    // Plant Mess expenses
+    plantMessExpenses.forEach(e => {
       transactions.push({
         ...e,
-        id: `lang-${e.id}`,
+        id: `pm-${e.id}`,
         operationId: e.id,
         date: e.expense_date,
-        modelType: 'Langar',
+        modelType: 'Plant Mess',
         description: e.description,
         amount: e.amount || 0,
         month: new Date(e.expense_date).toLocaleString('default', { month: 'long' }),
@@ -742,6 +737,7 @@ export const DataProvider = ({ children }) => {
         operationId: e.id,
         date: e.expense_date,
         modelType: 'Plant Expense',
+        subCategory: e.category,
         description: e.description,
         amount: e.amount || 0,
         month: new Date(e.expense_date).toLocaleString('default', { month: 'long' }),
@@ -749,30 +745,20 @@ export const DataProvider = ({ children }) => {
       });
     });
 
-    // Misc expenses
-    miscExpenses.forEach(e => {
-      transactions.push({
-        ...e,
-        id: `misc-${e.id}`,
-        operationId: e.id,
-        date: e.expense_date,
-        modelType: 'Misc Expense',
-        description: e.description,
-        amount: e.amount || 0,
-        month: new Date(e.expense_date).toLocaleString('default', { month: 'long' }),
-        year: new Date(e.expense_date).getFullYear().toString(),
-      });
-    });
 
     // Dumper operations
     dumperOperations.forEach(op => {
+      const dumperName = op.dumper_name || op.equipment_name || 'Dumper';
       transactions.push({
         ...op,
         id: `dump-${op.id}`,
         operationId: op.id,
         date: op.trip_date,
         modelType: 'Dumper Trip',
-        description: `${op.dumper_name} - ${op.gravel_trips + op.clay_trips} trips`,
+        subCategory: dumperName,
+        dumper_name: dumperName,
+        equipment_name: dumperName,
+        description: `${dumperName} - ${op.gravel_trips + op.clay_trips} trips`,
         amount: op.trip_amount || 0,
         month: new Date(op.trip_date).toLocaleString('default', { month: 'long' }),
         year: new Date(op.trip_date).getFullYear().toString(),
@@ -781,13 +767,17 @@ export const DataProvider = ({ children }) => {
 
     // Dumper misc expenses
     dumperMiscExpenses.forEach(e => {
+      const dumperName = e.dumper_name || dumperNameById[e.dumper_id] || e.equipment_name || 'Dumper';
       transactions.push({
         ...e,
         id: `dumpmsc-${e.id}`,
         operationId: e.id,
         date: e.expense_date,
         modelType: 'Dumper Misc',
-        description: `${e.dumper_name} - ${e.description}`,
+        subCategory: dumperName,
+        dumper_name: dumperName,
+        equipment_name: dumperName,
+        description: `${dumperName} - ${e.description || ''}`.trim(),
         amount: e.amount || 0,
         month: new Date(e.expense_date).toLocaleString('default', { month: 'long' }),
         year: new Date(e.expense_date).getFullYear().toString(),
@@ -827,7 +817,7 @@ export const DataProvider = ({ children }) => {
     });
 
     return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [generatorOperations, excavatorOperations, loaderOperations, blastingMaterials, langarExpenses, plantExpenses, miscExpenses, dumperOperations, dumperMiscExpenses, salaries, humanResources, dailyProductions]);
+  }, [generatorOperations, excavatorOperations, loaderOperations, blastingMaterials, plantMessExpenses, plantExpenses, dumperOperations, dumperMiscExpenses, salaries, humanResources, dailyProductions, equipment]);
 
   // ============================================================
   // CONTEXT VALUE
@@ -838,9 +828,8 @@ export const DataProvider = ({ children }) => {
     excavatorOperations,
     loaderOperations,
     blastingMaterials,
-    langarExpenses,
+    plantMessExpenses,
     plantExpenses,
-    miscExpenses,
     dumperOperations,
     dumperMiscExpenses,
     humanResources,
@@ -886,11 +875,11 @@ export const DataProvider = ({ children }) => {
     deleteBlastingMaterial,
     getBlastingMonthly,
 
-    // Langar CRUD
-    addLangarExpense,
-    updateLangarExpense,
-    deleteLangarExpense,
-    getLangarMonthly,
+    // Plant Mess CRUD
+    addPlantMessExpense,
+    updatePlantMessExpense,
+    deletePlantMessExpense,
+    getPlantMessMonthly,
 
     // Plant Expense CRUD
     addPlantExpense,
@@ -898,11 +887,6 @@ export const DataProvider = ({ children }) => {
     deletePlantExpense,
     getPlantMonthly,
 
-    // Misc Expense CRUD
-    addMiscExpense,
-    updateMiscExpense,
-    deleteMiscExpense,
-    getMiscMonthly,
 
     // Dumper CRUD
     addDumperOperation,
@@ -967,7 +951,6 @@ export const DataProvider = ({ children }) => {
     deleteExpenseCategory,
     blastingItems,
     plantExpenseCategories,
-    miscExpenseCategories,
 
     // Equipment Types
     equipmentTypes,

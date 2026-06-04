@@ -28,7 +28,7 @@ export const ToastProvider = ({ children }) => {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`px-5 py-3 rounded-lg shadow-lg text-white font-semibold text-sm pointer-events-auto
+            className={`px-5 py-3 rounded-lg shadow-lg text-white font-semibold text-sm pointer-events-none
               transform transition-all duration-300 min-w-[250px]
               ${toast.entering ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
               ${toast.type === 'success' ? 'bg-green-600' : 

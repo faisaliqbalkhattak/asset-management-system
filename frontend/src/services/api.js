@@ -54,7 +54,7 @@ export const generatorApi = {
   // Delete operation
   delete: (id) => api.delete(`/generator/${id}`),
   // Get monthly summary
-  getMonthly: (year, month) => api.get(`/generator/monthly/${year}/${month}`),
+  getMonthly: (year, month) => api.get(`/generator/month/${year}/${month}`),
   // Get yearly summary
   getYearly: (year) => api.get(`/generator/yearly/${year}`),
 };
@@ -75,7 +75,7 @@ export const excavatorApi = {
   // Delete operation
   delete: (id) => api.delete(`/excavator/${id}`),
   // Get monthly summary (includes total and misc_total separately)
-  getMonthly: (year, month) => api.get(`/excavator/monthly/${year}/${month}`),
+  getMonthly: (year, month) => api.get(`/excavator/month/${year}/${month}`),
   // Get yearly summary
   getYearly: (year) => api.get(`/excavator/yearly/${year}`),
 };
@@ -118,35 +118,35 @@ export const blastingApi = {
   // Delete purchase
   delete: (id) => api.delete(`/blasting/${id}`),
   // Get monthly summary
-  getMonthly: (year, month) => api.get(`/blasting/monthly/${year}/${month}`),
+  getMonthly: (year, month) => api.get(`/blasting/month/${year}/${month}`),
   // Get yearly summary
   getYearly: (year) => api.get(`/blasting/yearly/${year}`),
 };
 
 // ============================================================
-// LANGAR API
+// PLANT MESS API
 // Description + amount per item, monthly totals
 // ============================================================
-export const langarApi = {
+export const plantMessApi = {
   // Get all expenses
-  getAll: () => api.get('/langar'),
+  getAll: () => api.get('/plant-mess'),
   // Get single expense
-  getById: (id) => api.get(`/langar/${id}`),
+  getById: (id) => api.get(`/plant-mess/${id}`),
   // Create new expense
-  create: (data) => api.post('/langar', data),
+  create: (data) => api.post('/plant-mess', data),
   // Update expense
-  update: (id, data) => api.put(`/langar/${id}`, data),
+  update: (id, data) => api.put(`/plant-mess/${id}`, data),
   // Delete expense
-  delete: (id) => api.delete(`/langar/${id}`),
+  delete: (id) => api.delete(`/plant-mess/${id}`),
   // Get monthly summary
-  getMonthly: (year, month) => api.get(`/langar/monthly/${year}/${month}`),
+  getMonthly: (year, month) => api.get(`/plant-mess/month/${year}/${month}`),
   // Get yearly summary
-  getYearly: (year) => api.get(`/langar/yearly/${year}`),
+  getYearly: (year) => api.get(`/plant-mess/yearly/${year}`),
 };
 
 // ============================================================
 // PLANT EXPENSE API
-// Same structure as langar - description + amount
+// Same structure as plant mess - description + amount
 // ============================================================
 export const plantExpenseApi = {
   // Get all expenses
@@ -160,30 +160,9 @@ export const plantExpenseApi = {
   // Delete expense
   delete: (id) => api.delete(`/plant-expense/${id}`),
   // Get monthly summary
-  getMonthly: (year, month) => api.get(`/plant-expense/monthly/${year}/${month}`),
+  getMonthly: (year, month) => api.get(`/plant-expense/month/${year}/${month}`),
   // Get yearly summary
   getYearly: (year) => api.get(`/plant-expense/yearly/${year}`),
-};
-
-// ============================================================
-// MISC EXPENSE API (General - separate table)
-// Separate entry point, shown in separate column in views
-// ============================================================
-export const miscExpenseApi = {
-  // Get all misc expenses
-  getAll: () => api.get('/misc-expense'),
-  // Get single expense
-  getById: (id) => api.get(`/misc-expense/${id}`),
-  // Create new expense
-  create: (data) => api.post('/misc-expense', data),
-  // Update expense
-  update: (id, data) => api.put(`/misc-expense/${id}`, data),
-  // Delete expense
-  delete: (id) => api.delete(`/misc-expense/${id}`),
-  // Get monthly summary
-  getMonthly: (year, month) => api.get(`/misc-expense/monthly/${year}/${month}`),
-  // Get yearly summary
-  getYearly: (year) => api.get(`/misc-expense/yearly/${year}`),
 };
 
 // ============================================================
@@ -429,11 +408,13 @@ export const equipmentApi = {
 
 // ============================================================
 // EXPENSE CATEGORY API
-// Master data for expense categories (Blasting, Langar, Plant, Misc)
+// Master data for expense categories (Blasting, Plant Mess, Plant, Misc)
 // ============================================================
 export const expenseCategoryApi = {
   // Get all categories
   getAll: () => api.get('/expenses/categories'),
+  // Get active categories only
+  getActive: () => api.get('/expenses/categories?active=true'),
   // Get categories by type (MAIN, BLASTING_ITEM, PLANT_EXPENSE, MISC_EXPENSE)
   getByType: (type) => api.get(`/expenses/categories?type=${type}`),
   // Get single category
