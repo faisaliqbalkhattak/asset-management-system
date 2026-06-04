@@ -11,7 +11,8 @@ const Masters = () => {
 
       <HumanResourceSection />
       <EquipmentSection />
-      <ExpenseCategorySection />
+      <BlastingCategorySection />
+      <PlantExpenseCategorySection />
     </div>
   );
 };
@@ -19,6 +20,8 @@ const Masters = () => {
 // Human Resource Section
 const HumanResourceSection = () => {
   const { humanResources, addHumanResource, updateHumanResource, deleteHumanResource } = useData();
+  const allowedEmployees = ['Muhammad Ali', 'Ahmed Khan', 'Rashid Hussain', 'Imran Shah'];
+  const activeHumanResources = humanResources.filter((emp) => emp.is_active !== 0 && allowedEmployees.includes(emp.employee_name));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -248,14 +251,14 @@ const HumanResourceSection = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {humanResources.length === 0 ? (
+            {activeHumanResources.length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                   No employees added yet
                 </td>
               </tr>
             ) : (
-              humanResources.map((emp) => (
+              activeHumanResources.map((emp) => (
                 <tr key={emp.id} className="hover:bg-pink-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{emp.employee_name}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{emp.designation}</td>
@@ -298,6 +301,8 @@ const HumanResourceSection = () => {
 // Equipment Section - CRUD for equipment
 const EquipmentSection = () => {
   const { equipment, addEquipment, updateEquipment, deleteEquipment, equipmentTypes, rateTypes } = useData();
+  const allowedEquipmentCodes = ['GEN-001', 'EXC-001', 'LDR-966F', 'LDR-950E', 'DMP-TKR219', 'DMP-TAC388', 'GEN-500KVA', 'DMP-TAB959', 'DMP-TAE601'];
+  const activeEquipment = equipment.filter((item) => item.is_active !== 0 && allowedEquipmentCodes.includes(item.equipment_code));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -526,14 +531,14 @@ const EquipmentSection = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {equipment.length === 0 ? (
+            {activeEquipment.length === 0 ? (
               <tr>
                 <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                   No equipment added yet. Click "Add Equipment" to get started.
                 </td>
               </tr>
             ) : (
-              equipment.map((item) => (
+              activeEquipment.map((item) => (
                 <tr key={item.id} className={`hover:bg-gray-50 ${editingId === item.id ? 'bg-yellow-50' : ''}`}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{item.equipment_code}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -569,8 +574,7 @@ const EquipmentSection = () => {
   );
 };
 
-// Expense Category Section - CRUD for categories
-const ExpenseCategorySection = () => {
+const CategorySection = ({ title, subtitle, categoryType, theme }) => {
   const { expenseCategories, addExpenseCategory, updateExpenseCategory, deleteExpenseCategory } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -581,6 +585,7 @@ const ExpenseCategorySection = () => {
     name: '',
     description: '',
     color: 'bg-gray-100 text-gray-800',
+    category_type: categoryType,
   });
 
   const COLOR_OPTIONS = [
@@ -627,6 +632,7 @@ const ExpenseCategorySection = () => {
       name: item.category_name || item.name || '',
       description: item.description || '',
       color: item.color || 'bg-gray-100 text-gray-800',
+      category_type: item.category_type || categoryType,
     });
     setEditingId(item.id);
     setShowForm(true);
@@ -645,7 +651,7 @@ const ExpenseCategorySection = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', color: 'bg-gray-100 text-gray-800' });
+    setFormData({ name: '', description: '', color: 'bg-gray-100 text-gray-800', category_type: categoryType });
     setEditingId(null);
     setShowForm(false);
     setIsSubmitting(false);
@@ -653,12 +659,14 @@ const ExpenseCategorySection = () => {
     setSuccess('');
   };
 
+  const categories = expenseCategories.filter((c) => c.category_type === categoryType);
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex justify-between items-center">
+      <div className={`px-6 py-4 ${theme.headerBg} border-b ${theme.headerBorder} flex justify-between items-center`}>
         <div>
-          <h2 className="text-lg font-medium text-red-800">Expense Categories</h2>
-          <p className="text-sm text-red-600">Add and manage expense categories</p>
+          <h2 className={`text-lg font-medium ${theme.headerText}`}>{title}</h2>
+          <p className={`text-sm ${theme.subText}`}>{subtitle}</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'secondary' : 'default'}>
           {showForm ? 'Cancel' : '+ Add Category'}
@@ -666,7 +674,7 @@ const ExpenseCategorySection = () => {
       </div>
 
       {showForm && (
-        <div className="p-6 border-b border-gray-200 bg-red-50">
+        <div className={`p-6 border-b border-gray-200 ${theme.formBg}`}>
           <h3 className="text-md font-medium text-gray-800 mb-4">
             {editingId ? 'Edit Category' : 'Add New Category'}
           </h3>
@@ -683,22 +691,22 @@ const ExpenseCategorySection = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="name">Category Name *</Label>
+                <Label htmlFor={`name-${categoryType}`}>Category Name *</Label>
                 <Input
-                  id="name"
+                  id={`name-${categoryType}`}
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="e.g., Blasting Material"
+                  placeholder="e.g., Detonator"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor={`description-${categoryType}`}>Description</Label>
                 <Input
-                  id="description"
+                  id={`description-${categoryType}`}
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
@@ -706,9 +714,9 @@ const ExpenseCategorySection = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="color">Color</Label>
+                <Label htmlFor={`color-${categoryType}`}>Color</Label>
                 <select
-                  id="color"
+                  id={`color-${categoryType}`}
                   name="color"
                   value={formData.color}
                   onChange={handleChange}
@@ -743,14 +751,14 @@ const ExpenseCategorySection = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {expenseCategories.length === 0 ? (
+            {categories.length === 0 ? (
               <tr>
                 <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
-                  No expense categories added yet. Click "Add Category" to get started.
+                  No categories added yet. Click "Add Category" to get started.
                 </td>
               </tr>
             ) : (
-              expenseCategories.map((item) => (
+              categories.map((item) => (
                 <tr key={item.id} className={`hover:bg-gray-50 ${editingId === item.id ? 'bg-yellow-50' : ''}`}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.category_name || item.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{item.description || '-'}</td>
@@ -776,5 +784,35 @@ const ExpenseCategorySection = () => {
     </div>
   );
 };
+
+const BlastingCategorySection = () => (
+  <CategorySection
+    title="Blasting Material Items"
+    subtitle="Add and manage blasting material sub-categories"
+    categoryType="BLASTING_ITEM"
+    theme={{
+      headerBg: 'bg-amber-50',
+      headerBorder: 'border-amber-200',
+      headerText: 'text-amber-800',
+      subText: 'text-amber-600',
+      formBg: 'bg-amber-50',
+    }}
+  />
+);
+
+const PlantExpenseCategorySection = () => (
+  <CategorySection
+    title="Plant Expense Categories"
+    subtitle="Add and manage plant expense sub-categories"
+    categoryType="PLANT_EXPENSE"
+    theme={{
+      headerBg: 'bg-red-50',
+      headerBorder: 'border-red-200',
+      headerText: 'text-red-800',
+      subText: 'text-red-600',
+      formBg: 'bg-red-50',
+    }}
+  />
+);
 
 export default Masters;

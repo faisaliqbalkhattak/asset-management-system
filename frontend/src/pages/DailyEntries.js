@@ -139,10 +139,9 @@ const DailyEntries = () => {
           <TabsTrigger value="loaders">Loaders</TabsTrigger>
           <TabsTrigger value="dumpers">Dumpers</TabsTrigger>
           <TabsTrigger value="blasting">Blasting Material</TabsTrigger>
-          <TabsTrigger value="langar">Langar</TabsTrigger>
+          <TabsTrigger value="plant-mess">Plant Mess</TabsTrigger>
           <TabsTrigger value="plant">Plant Expense</TabsTrigger>
-          <TabsTrigger value="misc">Misc Expense</TabsTrigger>
-          <TabsTrigger value="salary">Salaries</TabsTrigger>
+          <TabsTrigger value="salary">Staff Salaries</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generator">
@@ -165,16 +164,12 @@ const DailyEntries = () => {
           <BlastingMaterialForm />
         </TabsContent>
 
-        <TabsContent value="langar">
-          <LangarForm />
+        <TabsContent value="plant-mess">
+          <PlantMessForm />
         </TabsContent>
 
         <TabsContent value="plant">
           <PlantExpenseForm />
-        </TabsContent>
-
-        <TabsContent value="misc">
-          <MiscExpenseForm />
         </TabsContent>
 
         <TabsContent value="salary">
@@ -852,7 +847,7 @@ const LoadersForm = () => {
   const handleEdit = (op) => {
     setEditingId(op.id);
     setFormData({
-      equipment_name: op.equipment_name || loaders[0]?.name || '',
+      equipment_name: op.equipment_name || loaders[0]?.equipment_name || '',
       operation_date: op.operation_date,
       rent_per_day: op.rent_per_day?.toString() || '',
       fuel_consumed: op.fuel_consumed?.toString() || op.fuel_per_day?.toString() || '',
@@ -887,7 +882,7 @@ const LoadersForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      equipment_name: loaders[0]?.name || '',
+      equipment_name: loaders[0]?.equipment_name || '',
       operation_date: new Date().toISOString().split('T')[0],
       rent_per_day: formData.rent_per_day,
       fuel_consumed: '',
@@ -1143,7 +1138,8 @@ const DumpersForm = () => {
     clay_trips: '',
     cft_per_trip: '',
     rate_per_cft: '',
-    misc_expense: '',
+    misc_fuel_qty: '',
+    misc_fuel_rate: '',
     misc_description: '',
     misc_expense_2: '',
     misc_description_2: '',
@@ -1159,7 +1155,9 @@ const DumpersForm = () => {
   const totalTrips = (parseInt(formData.gravel_trips) || 0) + (parseInt(formData.clay_trips) || 0);
   const totalCft = totalTrips * (parseFloat(formData.cft_per_trip) || 0);
   const tripAmount = totalCft * (parseFloat(formData.rate_per_cft) || 0);
-  const miscAmount = parseFloat(formData.misc_expense) || 0;
+  const miscFuelQty = parseFloat(formData.misc_fuel_qty) || 0;
+  const miscFuelRate = parseFloat(formData.misc_fuel_rate) || 0;
+  const miscAmount = miscFuelQty * miscFuelRate;
   const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
   const totalMisc = miscAmount + miscAmount2;
   const total = tripAmount;
@@ -1173,13 +1171,14 @@ const DumpersForm = () => {
   const handleEdit = (op) => {
     setEditingId(op.id);
     setFormData({
-      dumper_name: op.dumper_name || dumpers[0]?.name || '',
+      dumper_name: op.dumper_name || dumpers[0]?.equipment_name || '',
       trip_date: op.trip_date,
       gravel_trips: op.gravel_trips?.toString() || '',
       clay_trips: op.clay_trips?.toString() || '',
       cft_per_trip: op.cft_per_trip?.toString() || '',
       rate_per_cft: op.rate_per_cft?.toString() || '',
-      misc_expense: op.misc_expense?.toString() || '',
+      misc_fuel_qty: op.misc_fuel_qty?.toString() || '',
+      misc_fuel_rate: op.misc_fuel_rate?.toString() || '',
       misc_description: op.misc_description || '',
       misc_expense_2: op.misc_expense_2?.toString() || '',
       misc_description_2: op.misc_description_2 || '',
@@ -1207,13 +1206,14 @@ const DumpersForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      dumper_name: dumpers[0]?.name || '',
+      dumper_name: dumpers[0]?.equipment_name || '',
       trip_date: new Date().toISOString().split('T')[0],
       gravel_trips: '',
       clay_trips: '',
       cft_per_trip: formData.cft_per_trip,
       rate_per_cft: formData.rate_per_cft,
-      misc_expense: '',
+      misc_fuel_qty: '',
+      misc_fuel_rate: '',
       misc_description: '',
       misc_expense_2: '',
       misc_description_2: '',
@@ -1241,6 +1241,8 @@ const DumpersForm = () => {
         rate_per_cft: parseFloat(formData.rate_per_cft) || 0,
         total_cft: totalCft,
         trip_amount: tripAmount,
+        misc_fuel_qty: miscFuelQty,
+        misc_fuel_rate: miscFuelRate,
         misc_expense: miscAmount,
         misc_description: formData.misc_description || null,
         misc_expense_2: miscAmount2,
@@ -1269,7 +1271,8 @@ const DumpersForm = () => {
         clay_trips: '',
         cft_per_trip: formData.cft_per_trip,
         rate_per_cft: formData.rate_per_cft,
-        misc_expense: '',
+        misc_fuel_qty: '',
+        misc_fuel_rate: '',
         misc_description: '',
         misc_expense_2: '',
         misc_description_2: '',
@@ -1331,23 +1334,28 @@ const DumpersForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="misc_expense">Misc Expense 1 (PKR)</Label>
-            <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
+            <Label htmlFor="misc_fuel_qty">Fuel Qty (L)</Label>
+            <Input type="number" id="misc_fuel_qty" name="misc_fuel_qty" value={formData.misc_fuel_qty} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
 
           <div>
-            <Label htmlFor="misc_description">Misc 1 Description</Label>
-            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="Oil, repairs, etc." />
+            <Label htmlFor="misc_fuel_rate">Fuel Rate (PKR/L)</Label>
+            <Input type="number" id="misc_fuel_rate" name="misc_fuel_rate" value={formData.misc_fuel_rate} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
 
           <div>
-            <Label htmlFor="misc_expense_2">Misc Expense 2 (PKR)</Label>
+            <Label htmlFor="misc_description">Fuel Remarks</Label>
+            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="Fuel notes" />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_expense_2">Misc Expense (PKR)</Label>
             <Input type="number" id="misc_expense_2" name="misc_expense_2" value={formData.misc_expense_2} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
 
           <div>
-            <Label htmlFor="misc_description_2">Misc 2 Description</Label>
-            <Input type="text" id="misc_description_2" name="misc_description_2" value={formData.misc_description_2} onChange={handleChange} placeholder="What is misc 2 for?" />
+            <Label htmlFor="misc_description_2">Misc Description</Label>
+            <Input type="text" id="misc_description_2" name="misc_description_2" value={formData.misc_description_2} onChange={handleChange} placeholder="Other charges" />
           </div>
         </div>
 
@@ -1414,8 +1422,10 @@ const DumpersForm = () => {
           { key: 'total_trips', label: 'Total Trips' },
           { key: 'total_cft', label: 'Total CFT' },
           { key: 'trip_amount', label: 'Trip Amount' },
-          { key: 'misc_expense', label: 'Misc 1' },
-          { key: 'misc_description', label: 'Misc 1 Desc' },
+          { key: 'misc_fuel_qty', label: 'Fuel Qty' },
+          { key: 'misc_fuel_rate', label: 'Fuel Rate' },
+          { key: 'misc_expense', label: 'Fuel Amount' },
+          { key: 'misc_description', label: 'Fuel Remarks' },
           { key: 'misc_expense_2', label: 'Misc 2' },
           { key: 'misc_description_2', label: 'Misc 2 Desc' },
           { key: 'total_amount', label: 'Total' },
@@ -1652,10 +1662,10 @@ const BlastingMaterialForm = () => {
 };
 
 // ============================================================
-// LANGAR FORM
+// PLANT MESS FORM
 // ============================================================
-const LangarForm = () => {
-  const { langarExpenses, addLangarExpense, updateLangarExpense, deleteLangarExpense } = useData();
+const PlantMessForm = () => {
+  const { plantMessExpenses, addPlantMessExpense, updatePlantMessExpense, deletePlantMessExpense } = useData();
   const { showToast } = useToast();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1690,12 +1700,12 @@ const LangarForm = () => {
   const handleDelete = async (exp) => {
     if (!window.confirm('Delete this entry permanently?')) return;
     try {
-      await deleteLangarExpense(exp.id);
+      await deletePlantMessExpense(exp.id);
       if (editingId === exp.id) {
         handleCancelEdit();
       }
-      setSuccess('Langar expense deleted!');
-      showToast('Langar expense deleted!', 'success');
+      setSuccess('Plant Mess expense deleted!');
+      showToast('Plant Mess expense deleted!', 'success');
     } catch (err) {
       setError(err.message || 'Failed to delete');
       showToast(err.message || 'Failed to delete', 'error');
@@ -1722,15 +1732,15 @@ const LangarForm = () => {
       };
 
       if (editingId) {
-        await updateLangarExpense(editingId, payload);
-        setSuccess('Langar expense updated!');
-        showToast('Langar expense updated!', 'success');
+        await updatePlantMessExpense(editingId, payload);
+        setSuccess('Plant Mess expense updated!');
+        showToast('Plant Mess expense updated!', 'success');
         setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
         setEditingId(null);
       } else {
-        await addLangarExpense(payload);
-        setSuccess('Langar expense saved!');
-        showToast('Langar expense saved!', 'success');
+        await addPlantMessExpense(payload);
+        setSuccess('Plant Mess expense saved!');
+        showToast('Plant Mess expense saved!', 'success');
         setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
@@ -1744,7 +1754,7 @@ const LangarForm = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-4">Langar Expense</h2>
+      <h2 className="text-lg font-medium text-gray-900 mb-4">Plant Mess Expense</h2>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
       {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">{success}</div>}
@@ -1780,7 +1790,7 @@ const LangarForm = () => {
 
       {/* Recent Entries */}
       <RecentEntriesSection
-        data={langarExpenses}
+        data={plantMessExpenses}
         primaryColumns={[
           { key: 'expense_date', label: 'Date' },
           { key: 'description', label: 'Description' },
@@ -1968,172 +1978,6 @@ const PlantExpenseForm = () => {
 };
 
 // ============================================================
-// MISC EXPENSE FORM - Uses expense categories dropdown
-// ============================================================
-const MiscExpenseForm = () => {
-  const { miscExpenseCategories, miscExpenses, addMiscExpense, updateMiscExpense, deleteMiscExpense } = useData();
-  const { showToast } = useToast();
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [justSaved, setJustSaved] = useState(false);
-
-  // Categories from expense_categories DB (MISC_EXPENSE type) with fallback
-  const categories = miscExpenseCategories;
-
-  const [formData, setFormData] = useState({
-    expense_date: new Date().toISOString().split('T')[0],
-    category: categories[0] || '',
-    description: '',
-    amount: '',
-    remarks: '',
-  });
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setError('');
-  };
-
-  const handleEdit = (exp) => {
-    setEditingId(exp.id);
-    setFormData({
-      expense_date: exp.expense_date,
-      category: exp.category || categories[0] || '',
-      description: exp.description || '',
-      amount: exp.amount?.toString() || '',
-      remarks: exp.remarks || '',
-    });
-    setError('');
-    setSuccess('');
-  };
-
-  const handleDelete = async (exp) => {
-    if (!window.confirm('Delete this entry permanently?')) return;
-    try {
-      await deleteMiscExpense(exp.id);
-      if (editingId === exp.id) {
-        handleCancelEdit();
-      }
-      setSuccess('Misc expense deleted!');
-      showToast('Misc expense deleted!', 'success');
-    } catch (err) {
-      setError(err.message || 'Failed to delete');
-      showToast(err.message || 'Failed to delete', 'error');
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setFormData({ expense_date: new Date().toISOString().split('T')[0], category: categories[0] || '', description: '', amount: '', remarks: '' });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setIsSubmitting(true);
-
-    try {
-      const payload = {
-        expense_date: formData.expense_date,
-        category: formData.category,
-        description: formData.description,
-        amount: parseFloat(formData.amount) || 0,
-        remarks: formData.remarks || null,
-      };
-
-      if (editingId) {
-        await updateMiscExpense(editingId, payload);
-        setSuccess('Misc expense updated!');
-        showToast('Misc expense updated!', 'success');
-        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
-        setEditingId(null);
-      } else {
-        await addMiscExpense(payload);
-        setSuccess('Misc expense saved!');
-        showToast('Misc expense saved!', 'success');
-        setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
-      }
-
-      setFormData({ expense_date: new Date().toISOString().split('T')[0], category: formData.category, description: '', amount: '', remarks: '' });
-    } catch (err) {
-      setError(err.message || 'Failed to save');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-4">Misc Expense</h2>
-
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
-      {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">{success}</div>}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <Label htmlFor="expense_date">Date *</Label>
-            <Input type="date" id="expense_date" name="expense_date" value={formData.expense_date} onChange={handleChange} required />
-          </div>
-          <div>
-            <Label htmlFor="category">Category *</Label>
-            <Select id="category" name="category" value={formData.category} onChange={handleChange}>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Input type="text" id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Details" />
-          </div>
-          <div>
-            <Label htmlFor="amount">Amount (PKR) *</Label>
-            <Input type="number" id="amount" name="amount" value={formData.amount} onChange={handleChange} placeholder="0" step="0.01" required />
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor="remarks">Remarks</Label>
-          <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional" className="max-w-md" />
-        </div>
-
-        <div className="flex justify-end gap-2">
-          {editingId && <Button type="button" variant="secondary" onClick={handleCancelEdit}>Cancel</Button>}
-          <Button type="submit" variant={justSaved ? 'danger' : 'success'} disabled={isSubmitting}
-            className={justSaved ? 'shadow-lg shadow-red-500/50 scale-105' : ''}>
-            {isSubmitting ? 'Saving...' : justSaved ? '✓ Saved!' : editingId ? 'Update' : 'Save Entry'}
-          </Button>
-        </div>
-      </form>
-
-      {/* Recent Entries */}
-      <RecentEntriesSection
-        data={miscExpenses}
-        primaryColumns={[
-          { key: 'expense_date', label: 'Date' },
-          { key: 'category', label: 'Category' },
-          { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
-        ]}
-        allColumns={[
-          { key: 'expense_date', label: 'Date' },
-          { key: 'day_name', label: 'Day' },
-          { key: 'category', label: 'Category' },
-          { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount' },
-          { key: 'remarks', label: 'Remarks' },
-        ]}
-        editingId={editingId}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
-    </div>
-  );
-};
-
-// ============================================================
 // SALARY FORM
 // ============================================================
 const SalaryForm = () => {
@@ -2289,7 +2133,7 @@ const SalaryForm = () => {
 
       {activeEmployees.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
-          No active employees. Please add employees in <strong>Master Data → Human Resources</strong> first.
+          No active employees. Please add employees in <strong>Master Data → Staff at Plant</strong> first.
         </div>
       )}
 

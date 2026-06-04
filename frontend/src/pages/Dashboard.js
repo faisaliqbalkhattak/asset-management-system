@@ -8,11 +8,9 @@ const Dashboard = () => {
     excavatorOperations,
     loaderOperations,
     blastingMaterials,
-    langarExpenses,
+    plantMessExpenses,
     plantExpenses,
-    miscExpenses,
     dumperOperations,
-    dumperMiscExpenses,
     humanResources,
     salaries,
     dailyProductions,
@@ -54,20 +52,14 @@ const Dashboard = () => {
       color: 'bg-blue-100 text-blue-800',
     },
     {
-      label: 'Dumper Misc Expenses',
-      count: dumperMiscExpenses.length,
-      link: '/daily-entries',
-      color: 'bg-sky-100 text-sky-800',
-    },
-    {
       label: 'Blasting Materials',
       count: blastingMaterials.length,
       link: '/daily-entries',
       color: 'bg-red-100 text-red-800',
     },
     {
-      label: 'Langar Expenses',
-      count: langarExpenses.length,
+      label: 'Plant Mess',
+      count: plantMessExpenses.length,
       link: '/daily-entries',
       color: 'bg-green-100 text-green-800',
     },
@@ -78,19 +70,13 @@ const Dashboard = () => {
       color: 'bg-purple-100 text-purple-800',
     },
     {
-      label: 'Misc Expenses',
-      count: miscExpenses.length,
-      link: '/daily-entries',
-      color: 'bg-gray-100 text-gray-800',
-    },
-    {
-      label: 'Human Resources',
+      label: 'Staff at Plant',
       count: humanResources.length,
       link: '/daily-entries',
       color: 'bg-pink-100 text-pink-800',
     },
     {
-      label: 'Salaries Paid',
+      label: 'Staff Salaries',
       count: salaries.length,
       link: '/daily-entries',
       color: 'bg-pink-100 text-pink-800',
@@ -164,7 +150,7 @@ const Dashboard = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h3 className="text-lg font-medium text-red-800 mb-2">Total Expenses</h3>
           <div className="text-3xl font-bold text-red-700">
-            {blastingMaterials.length + langarExpenses.length + plantExpenses.length + miscExpenses.length}
+            {blastingMaterials.length + plantMessExpenses.length + plantExpenses.length}
           </div>
           <p className="text-sm text-red-600 mt-1">All expense entries</p>
         </div>
