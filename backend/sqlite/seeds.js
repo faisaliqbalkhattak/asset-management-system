@@ -1,4 +1,5 @@
 // Seeding Logic
+const { run } = require('./db');
 const UserRepository = require('./repositories/UserRepository');
 const EquipmentRepository = require('./repositories/EquipmentRepository');
 const VehicleRepository = require('./repositories/VehicleRepository');
@@ -28,7 +29,7 @@ const seedData = {
     equipment: [
         {
             equipment_code: 'GEN-001',
-            equipment_name: 'Generator 100KVA Primary',
+            const { run, getDatabase } = require('./db');
             equipment_type: 'GENERATOR',
             rate_type: 'PER_DAY',
             default_rate: 5000
@@ -53,7 +54,8 @@ const seedData = {
             equipment_type: 'LOADER',
             rate_type: 'PER_MONTH',
             default_rate: 550000
-        },
+                    const database = getDatabase();
+                    database.run('UPDATE human_resources SET is_active = 0');
         {
             equipment_code: 'DMP-TKR219',
             equipment_name: 'Dumper TKR-219',
@@ -69,13 +71,36 @@ const seedData = {
             rate_type: 'PER_TRIP',
             default_rate: 1.9,
             capacity_cft: 937
+        },
+        {
+            equipment_code: 'GEN-500KVA',
+            equipment_name: 'Generator 500 KVA',
+            equipment_type: 'GENERATOR',
+            rate_type: 'PER_DAY',
+                    database.run('UPDATE equipment SET is_active = 0');
+        },
+        {
+            equipment_code: 'DMP-TAB959',
+            equipment_name: 'Dumper TAB-959',
+            equipment_type: 'DUMPER',
+            rate_type: 'PER_TRIP',
+            default_rate: 1.9,
+            capacity_cft: 937
+        },
+        {
+            equipment_code: 'DMP-TAE601',
+            equipment_name: 'Dumper TAE-601',
+            equipment_type: 'DUMPER',
+            rate_type: 'PER_TRIP',
+            default_rate: 1.9,
+            capacity_cft: 181
         }
     ],
 
     vehicles: [
         {
             vehicle_number: 'TKR-219',
-            vehicle_type: 'DUMPER',
+                    database.run('UPDATE expense_categories SET is_active = 0');
             capacity_cubic_feet: 838,
             default_rate: 1.9
         },
@@ -105,7 +130,7 @@ const seedData = {
             base_salary_month: 45000
         },
         {
-            name: 'Ahmed Khan',
+                    console.error('Failed to sync master tables:', e.message);
             designation: 'Excavator Operator',
             department: 'PLANT',
             base_salary_month: 35000
@@ -125,12 +150,14 @@ const seedData = {
     ],
 
     expenseCategories: [
-        { category_code: 'LANGAR', category_name: 'Langar (Food) Expenses' },
-        { category_code: 'PLANT_EXP', category_name: 'Plant Expenses' },
-        { category_code: 'MISC', category_name: 'Miscellaneous Expenses' },
-        { category_code: 'UTILITIES', category_name: 'Utilities' },
-        { category_code: 'TRANSPORT', category_name: 'Transport Charges' },
-        { category_code: 'REPAIR', category_name: 'Repairs & Maintenance' }
+        { category_code: 'BLAST_FUEL', category_name: 'Fuel Consumed Blasting', category_type: 'BLASTING_ITEM' },
+        { category_code: 'BLAST_JAGGERY', category_name: 'Jaggery', category_type: 'BLASTING_ITEM' },
+        { category_code: 'BLAST_AMMONIUM_NITRATE', category_name: 'AN (Ammonium nitrate)', category_type: 'BLASTING_ITEM' },
+        { category_code: 'BLAST_DETONATOR', category_name: 'Detonator', category_type: 'BLASTING_ITEM' },
+        { category_code: 'BLAST_TIP_TO_STAFF', category_name: 'Tip to staff', category_type: 'BLASTING_ITEM' },
+        { category_code: 'PLANT_REPAIR_MAINT', category_name: 'Repairs & Maintenance', category_type: 'PLANT_EXPENSE' },
+        { category_code: 'PLANT_ACCESSORIES', category_name: 'Plant accessories', category_type: 'PLANT_EXPENSE' },
+        { category_code: 'PLANT_RENT', category_name: 'Plant Rent', category_type: 'PLANT_EXPENSE' }
     ],
 
     aggregateClassifications: [
@@ -172,21 +199,85 @@ function seedDatabaseInternal() {
         try { MaterialRepository.create(item); } catch (e) {}
     }
 
-    // Employees — HumanResourceRepository exports a CLASS, so we must instantiate it
-    // HumanResourceRepository.create() accepts both 'name' and 'employee_name'
-    // and both 'base_salary_month' and 'base_salary' (handled inside the repo)
-    const hrRepo = new HumanResourceRepository();
-    for (const item of seedData.employees) {
-        try { 
-            hrRepo.create(item); 
-        } catch (e) {
-            console.error(`Failed to seed employee '${item.name || item.employee_name}':`, e.message);
+    // Employees — keep only the seed set active
+    try {
+        const hrRepo = new HumanResourceRepository();
+        run('UPDATE human_resources SET is_active = 0');
+        for (const item of seedData.employees) {
+            const existing = hrRepo.getByName(item.name);
+            if (existing) {
+                hrRepo.update(existing.id, {
+                    employee_name: item.name,
+                    designation: item.designation,
+                    department: item.department,
+                    base_salary: item.base_salary_month,
+                    status: 'active',
+                    is_active: 1,
+                });
+            } else {
+                hrRepo.create(item);
+            }
         }
+    } catch (e) {
+        console.error('Failed to sync human resources:', e.message);
     }
 
-    // Expense Categories
-    for (const item of seedData.expenseCategories) {
-        try { ExpenseCategoryRepository.create(item); } catch (e) {}
+    // Equipment — keep only the seed set active
+    try {
+        run('UPDATE equipment SET is_active = 0');
+        for (const item of seedData.equipment) {
+            const existing = EquipmentRepository.findByCode(item.equipment_code);
+            if (existing) {
+                EquipmentRepository.update(existing.id, {
+                    equipment_code: item.equipment_code,
+                    equipment_name: item.equipment_name,
+                    equipment_type: item.equipment_type,
+                    rate_type: item.rate_type,
+                    default_rate: item.default_rate || 0,
+                    capacity_cft: item.capacity_cft || null,
+                    is_active: 1,
+                });
+            } else {
+                EquipmentRepository.create(item);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to sync equipment:', e.message);
+    }
+
+    // Expense Categories — keep only the seed set active
+    try {
+        run('UPDATE expense_categories SET is_active = 0');
+        for (const item of seedData.expenseCategories) {
+            const existingByCode = ExpenseCategoryRepository.findByCode(item.category_code);
+            if (existingByCode) {
+                ExpenseCategoryRepository.update(existingByCode.id, {
+                    category_code: item.category_code,
+                    category_name: item.category_name,
+                    category_type: item.category_type,
+                    is_active: 1
+                });
+                continue;
+            }
+
+            const existingByName = ExpenseCategoryRepository.rawOne(
+                'SELECT * FROM expense_categories WHERE LOWER(category_name) = LOWER(?) LIMIT 1',
+                [item.category_name]
+            );
+            if (existingByName) {
+                ExpenseCategoryRepository.update(existingByName.id, {
+                    category_code: item.category_code,
+                    category_name: item.category_name,
+                    category_type: item.category_type,
+                    is_active: 1
+                });
+                continue;
+            }
+
+            ExpenseCategoryRepository.create(item);
+        }
+    } catch (e) {
+        console.error('Failed to sync expense categories:', e.message);
     }
 
     // Aggregate Classifications

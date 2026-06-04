@@ -109,7 +109,7 @@ async function main() {
             { employee_name: 'Usman Ghani', designation: 'Helper', base_salary: 25000, status: 'active' },
             { employee_name: 'Farhan Malik', designation: 'Driver', base_salary: 30000, status: 'active' },
             { employee_name: 'Zahid Hussain', designation: 'Watchman', base_salary: 22000, status: 'active' },
-            { employee_name: 'Rashid Khan', designation: 'Cook (Langar)', base_salary: 28000, status: 'active' },
+            { employee_name: 'Rashid Khan', designation: 'Cook (Plant Mess)', base_salary: 28000, status: 'active' },
         ];
         let hrCount = 0;
         for (const emp of defaultEmployees) {
