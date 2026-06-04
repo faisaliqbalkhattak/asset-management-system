@@ -42,7 +42,7 @@ The primary data-entry module, organised into tabs:
 | **Loaders** | Same structure as Excavator. |
 | **Dumpers** | Trips and fuel per registered dumper. |
 | **Blasting Material** | Explosive purchases and usage. |
-| **Langar / Plant Exp / Misc** | Kitchen expenses, plant repairs, and general miscellaneous costs. |
+| **Plant Mess / Plant Exp / Misc** | Kitchen expenses, plant repairs, and general miscellaneous costs. |
 | **Salaries** | Monthly salary records generated from base salary in Masters. Adjustable for deductions or bonuses. |
 
 All forms display toast notifications on success or error.
@@ -88,7 +88,7 @@ A consolidated expense report with dynamically generated columns:
 
 - **Equipment columns** — auto-created from registered generators, excavators, and loaders.
 - **Dumper columns** — one column per registered dumper, plus a misc column each.
-- **Fixed categories** — Blasting, Langar, Plant Expenses, HR Salaries.
+- **Fixed categories** — Blasting, Plant Mess, Plant Expenses, HR Salaries.
 - **Misc excluded** — miscellaneous expenses are tracked in a separate reference card and are **not** included in the main Total.
 
 Use the Month/Year filters to narrow the view. Summary cards show the expense breakdown, misc reference totals, and overall balance.
