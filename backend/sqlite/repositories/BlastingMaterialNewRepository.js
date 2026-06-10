@@ -7,11 +7,39 @@
 // =====================================================
 
 const BaseRepository = require('./BaseRepository');
+const ExpenseCategoryRepository = require('./ExpenseCategoryRepository');
 const { get, all } = require('../db');
 
 class BlastingMaterialRepository extends BaseRepository {
     constructor() {
         super('blasting_material');
+    }
+
+    getCategoryName(categoryId) {
+        if (!categoryId) return null;
+        const category = ExpenseCategoryRepository.findById(categoryId);
+        return category ? category.category_name : null;
+    }
+
+    resolveCategoryId(data) {
+        if (data.category_id) return data.category_id;
+
+        const candidateName = data.category_name || data.description || data.item_name;
+        if (!candidateName) return null;
+
+        const category = ExpenseCategoryRepository.findByNameAndType(String(candidateName).trim(), 'BLASTING_ITEM');
+        return category ? category.id : null;
+    }
+
+    withCategoryFields(data) {
+        const categoryId = this.resolveCategoryId(data);
+        const categoryName = this.getCategoryName(categoryId);
+
+        return {
+            ...data,
+            category_id: categoryId,
+            description: categoryName || data.description || data.category_name || data.item_name || '',
+        };
     }
 
     /**
@@ -46,10 +74,10 @@ class BlastingMaterialRepository extends BaseRepository {
      * Create a new blasting material entry
      */
     create(data) {
-        const processedData = this.calculateTotals({
+        const processedData = this.calculateTotals(this.withCategoryFields({
             ...data,
             day_name: this.getDayName(data.purchase_date)
-        });
+        }));
         return super.create(processedData);
     }
 
@@ -57,11 +85,31 @@ class BlastingMaterialRepository extends BaseRepository {
      * Update an existing entry
      */
     update(id, data) {
-        const processedData = this.calculateTotals(data);
+        const processedData = this.calculateTotals(this.withCategoryFields(data));
         if (data.purchase_date) {
             processedData.day_name = this.getDayName(data.purchase_date);
         }
         return super.update(id, processedData);
+    }
+
+    findById(id) {
+        return get(
+            `SELECT bm.*, ec.category_name AS category_name, ec.category_code AS category_code
+             FROM ${this.tableName} bm
+             LEFT JOIN expense_categories ec ON bm.category_id = ec.id
+             WHERE bm.id = ?`,
+            [id]
+        );
+    }
+
+    findAll() {
+        return all(
+            `SELECT bm.*, ec.category_name AS category_name, ec.category_code AS category_code
+             FROM ${this.tableName} bm
+             LEFT JOIN expense_categories ec ON bm.category_id = ec.id
+             ORDER BY bm.purchase_date DESC, bm.id DESC`,
+            []
+        );
     }
 
     /**
@@ -69,9 +117,11 @@ class BlastingMaterialRepository extends BaseRepository {
      */
     getByDateRange(startDate, endDate) {
         const sql = `
-            SELECT * FROM ${this.tableName}
-            WHERE purchase_date >= ? AND purchase_date <= ?
-            ORDER BY purchase_date DESC, id DESC
+            SELECT bm.*, ec.category_name AS category_name, ec.category_code AS category_code
+            FROM ${this.tableName} bm
+            LEFT JOIN expense_categories ec ON bm.category_id = ec.id
+            WHERE bm.purchase_date >= ? AND bm.purchase_date <= ?
+            ORDER BY bm.purchase_date DESC, bm.id DESC
         `;
         return all(sql, [startDate, endDate]);
     }

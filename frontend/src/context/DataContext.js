@@ -1,19 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../services/api';
 
-const BLASTING_CATEGORY_NAMES = [
-  'Fuel Consumed Blasting',
-  'Jaggery',
-  'AN (Ammonium nitrate)',
-  'Detonator',
-  'Tip to staff',
-];
-const PLANT_EXPENSE_CATEGORY_NAMES = [
-  'Repairs & Maintenance',
-  'Plant accessories',
-  'Plant Rent',
-];
-
 const DataContext = createContext(undefined);
 
 export const useData = () => {
@@ -87,23 +74,39 @@ export const DataProvider = ({ children }) => {
   // Expense categories
   const [expenseCategories, setExpenseCategories] = useState([]);
 
-  // Computed: category lists for dropdown items by type
-  const blastingItems = useMemo(() => {
-    const names = expenseCategories
-      .filter(c => c.category_type === 'BLASTING_ITEM')
-      .filter(c => BLASTING_CATEGORY_NAMES.includes(c.category_name))
-      .map(c => c.category_name)
-      .filter(Boolean);
-    return names.length > 0 ? names : BLASTING_CATEGORY_NAMES;
-  }, [expenseCategories]);
-  const plantExpenseCategories = useMemo(() => {
-    const names = expenseCategories
-      .filter(c => c.category_type === 'PLANT_EXPENSE')
-      .filter(c => PLANT_EXPENSE_CATEGORY_NAMES.includes(c.category_name))
-      .map(c => c.category_name)
-      .filter(Boolean);
-    return names.length > 0 ? names : PLANT_EXPENSE_CATEGORY_NAMES;
-  }, [expenseCategories]);
+  // Computed: category options for dropdowns by type
+  const blastingItems = useMemo(() => (
+    expenseCategories
+      .filter(c => c.category_type === 'BLASTING_ITEM' && c.is_active !== 0)
+      .map(c => ({
+        value: String(c.id),
+        label: c.category_name,
+        category_code: c.category_code,
+        category_name: c.category_name,
+        category_type: c.category_type,
+      }))
+      .filter(option => option.value && option.label)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  ), [expenseCategories]);
+
+  const plantExpenseCategories = useMemo(() => (
+    expenseCategories
+      .filter(c => c.category_type === 'PLANT_EXPENSE' && c.is_active !== 0)
+      .map(c => ({
+        value: String(c.id),
+        label: c.category_name,
+        category_code: c.category_code,
+        category_name: c.category_name,
+        category_type: c.category_type,
+      }))
+      .filter(option => option.value && option.label)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  ), [expenseCategories]);
+
+  const expenseCategoryById = useMemo(() => expenseCategories.reduce((acc, category) => {
+    acc[String(category.id)] = category;
+    return acc;
+  }, {}), [expenseCategories]);
 
   // eslint-disable-next-line no-unused-vars
   const [equipmentTypes, setEquipmentTypes] = useState(['GENERATOR', 'EXCAVATOR', 'LOADER', 'DUMPER']);
@@ -700,14 +703,15 @@ export const DataProvider = ({ children }) => {
 
     // Blasting materials
     blastingMaterials.forEach(m => {
+      const categoryName = m.category_name || expenseCategoryById[String(m.category_id)]?.category_name || m.description || '';
       transactions.push({
         ...m,
         id: `blast-${m.id}`,
         operationId: m.id,
         date: m.purchase_date,
         modelType: 'Blasting Material',
-        subCategory: m.description,
-        description: `${m.description} - ${m.quantity} @ ${m.rate}`,
+        subCategory: categoryName,
+        description: `${categoryName} - ${m.quantity} @ ${m.rate}`,
         amount: m.total_amount || 0,
         month: new Date(m.purchase_date).toLocaleString('default', { month: 'long' }),
         year: new Date(m.purchase_date).getFullYear().toString(),
@@ -731,13 +735,14 @@ export const DataProvider = ({ children }) => {
 
     // Plant expenses
     plantExpenses.forEach(e => {
+      const categoryName = e.category_name || expenseCategoryById[String(e.category_id)]?.category_name || e.category || '';
       transactions.push({
         ...e,
         id: `plant-${e.id}`,
         operationId: e.id,
         date: e.expense_date,
         modelType: 'Plant Expense',
-        subCategory: e.category,
+        subCategory: categoryName,
         description: e.description,
         amount: e.amount || 0,
         month: new Date(e.expense_date).toLocaleString('default', { month: 'long' }),

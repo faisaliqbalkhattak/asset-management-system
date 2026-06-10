@@ -225,7 +225,7 @@ const COLUMN_CONFIGS = {
       total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
-      description: { type: 'text' },
+      category_id: { type: 'select', optionsKey: 'blastingItems' },
       quantity: { type: 'number', step: '0.01' },
       rate: { type: 'number', step: '0.01' },
       transport_charges: { type: 'number', step: '0.01' },
@@ -235,7 +235,7 @@ const COLUMN_CONFIGS = {
       const itemAmount = (parseFloat(data.quantity) || 0) * (parseFloat(data.rate) || 0);
       return {
         purchase_date: data.purchase_date,
-        description: data.description,
+        category_id: data.category_id || null,
         quantity: parseFloat(data.quantity) || 0,
         rate: parseFloat(data.rate) || 0,
         amount: itemAmount,
@@ -274,14 +274,14 @@ const COLUMN_CONFIGS = {
       description: 'Description', amount: 'Amount', remarks: 'Remarks',
     },
     editableFields: {
-      category: { type: 'text' },
+      category_id: { type: 'select', optionsKey: 'plantExpenseCategories' },
       description: { type: 'text' },
       amount: { type: 'number', step: '0.01' },
       remarks: { type: 'text' },
     },
     computePayload: (data) => ({
       expense_date: data.expense_date,
-      category: data.category || '',
+      category_id: data.category_id || null,
       description: data.description || '',
       amount: parseFloat(data.amount) || 0,
       remarks: data.remarks || null,
@@ -475,6 +475,15 @@ const Transactions = () => {
 
   const isSubCategoryEnabled = subCategoryConfig.options.length > 0;
 
+  const selectedSubCategoryLabel = useMemo(() => {
+    if (!isSubCategoryEnabled || selectedSubCategory === 'All') return '';
+    const option = subCategoryConfig.options.find((item) => {
+      const value = typeof item === 'string' ? item : item.value;
+      return String(value) === String(selectedSubCategory);
+    });
+    return typeof option === 'string' ? option : (option?.label || '');
+  }, [isSubCategoryEnabled, selectedSubCategory, subCategoryConfig.options]);
+
   useEffect(() => {
     if (!isSubCategoryEnabled && selectedSubCategory !== 'All') {
       setSelectedSubCategory('All');
@@ -581,6 +590,7 @@ const Transactions = () => {
 
     if (selectedSubCategory !== 'All' && isSubCategoryEnabled) {
       const normalizedSubCategory = normalizeText(selectedSubCategory);
+      const normalizedSubCategoryLabel = normalizeText(selectedSubCategoryLabel);
       if (isEquipmentGroupFilter) {
         filtered = filtered.filter((t) => {
           const dumperName = normalizeText(t.dumper_name || t.equipment_name);
@@ -588,10 +598,11 @@ const Transactions = () => {
         });
       } else {
         filtered = filtered.filter((t) => {
+          const categoryId = normalizeText(t.category_id);
           const category = normalizeText(t.category);
           const description = normalizeText(t.description);
           const subCategory = normalizeText(t.subCategory);
-          return category === normalizedSubCategory || description === normalizedSubCategory || subCategory === normalizedSubCategory;
+          return categoryId === normalizedSubCategory || category === normalizedSubCategory || description === normalizedSubCategory || subCategory === normalizedSubCategory || category === normalizedSubCategoryLabel || description === normalizedSubCategoryLabel || subCategory === normalizedSubCategoryLabel;
         });
       }
     }
@@ -839,6 +850,7 @@ const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEd
 
 // Row for AllTransactionsTable - shows date, type, description, amount + expandable details
 const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCancelEdit, onUpdate, onDelete }) => {
+  const { blastingItems, plantExpenseCategories } = useData();
   const [expanded, setExpanded] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -851,6 +863,7 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
         ? transaction[col].toString()
         : '';
     });
+    if (transaction.category_id !== undefined && transaction.category_id !== null) initialData.category_id = String(transaction.category_id);
     if (transaction.equipment_name) initialData.equipment_name = transaction.equipment_name;
     if (transaction.dumper_name) initialData.dumper_name = transaction.dumper_name;
     if (transaction.employee_id) initialData.employee_id = transaction.employee_id;
@@ -882,6 +895,11 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
     if (val === null || val === undefined || val === '') return '-';
     if (typeof val === 'number') return val.toLocaleString();
     return val;
+  };
+
+  const optionSources = {
+    blastingItems,
+    plantExpenseCategories,
   };
 
   return (
@@ -929,13 +947,26 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
                   {Object.entries(config.editableFields).map(([field, fieldConfig]) => (
                     <div key={field}>
                       <Label className="text-xs text-gray-500">{config.labels[field] || field}</Label>
-                      <Input
-                        type={fieldConfig.type}
-                        step={fieldConfig.step}
-                        value={editData[field] || ''}
-                        onChange={(e) => handleEditChange(field, e.target.value)}
-                        className="mt-1"
-                      />
+                      {fieldConfig.type === 'select' ? (
+                        <Select
+                          value={editData[field] || ''}
+                          onChange={(e) => handleEditChange(field, e.target.value)}
+                          className="mt-1"
+                        >
+                          <option value="">Select...</option>
+                          {(optionSources[fieldConfig.optionsKey] || []).map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Input
+                          type={fieldConfig.type}
+                          step={fieldConfig.step}
+                          value={editData[field] || ''}
+                          onChange={(e) => handleEditChange(field, e.target.value)}
+                          className="mt-1"
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

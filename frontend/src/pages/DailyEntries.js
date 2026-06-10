@@ -1451,17 +1451,23 @@ const BlastingMaterialForm = () => {
   const [editingId, setEditingId] = useState(null);
   const [justSaved, setJustSaved] = useState(false);
 
-  // Items from expense_categories DB (BLASTING_ITEM type) with fallback
+  // Items from expense_categories DB (BLASTING_ITEM type)
   const defaultItems = blastingItems;
   
   const [formData, setFormData] = useState({
     purchase_date: new Date().toISOString().split('T')[0],
-    description: defaultItems[0],
+    category_id: defaultItems[0]?.value || '',
     quantity: '',
     rate: '',
     transport_charges: '',
     remarks: '',
   });
+
+  React.useEffect(() => {
+    if (!formData.category_id && defaultItems.length > 0) {
+      setFormData(prev => ({ ...prev, category_id: defaultItems[0].value }));
+    }
+  }, [defaultItems, formData.category_id]);
 
   const itemAmount = (parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0);
   const total = itemAmount + (parseFloat(formData.transport_charges) || 0);
@@ -1476,7 +1482,7 @@ const BlastingMaterialForm = () => {
     setEditingId(item.id);
     setFormData({
       purchase_date: item.purchase_date,
-      description: item.description || defaultItems[0],
+      category_id: String(item.category_id || defaultItems.find(opt => opt.label === item.description)?.value || defaultItems[0]?.value || ''),
       quantity: item.quantity?.toString() || '',
       rate: item.rate?.toString() || '',
       transport_charges: item.transport_charges?.toString() || '',
@@ -1505,7 +1511,7 @@ const BlastingMaterialForm = () => {
     setEditingId(null);
     setFormData({
       purchase_date: new Date().toISOString().split('T')[0],
-      description: defaultItems[0],
+      category_id: defaultItems[0]?.value || '',
       quantity: '',
       rate: '',
       transport_charges: '',
@@ -1515,7 +1521,7 @@ const BlastingMaterialForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.description) {
+    if (!formData.category_id) {
       setError('Please select an item');
       return;
     }
@@ -1524,9 +1530,11 @@ const BlastingMaterialForm = () => {
     setIsSubmitting(true);
 
     try {
+      const selectedCategory = defaultItems.find(item => item.value === formData.category_id);
       const payload = {
         purchase_date: formData.purchase_date,
-        description: formData.description,
+        category_id: formData.category_id,
+        description: selectedCategory?.label || '',
         quantity: parseFloat(formData.quantity) || 0,
         rate: parseFloat(formData.rate) || 0,
         amount: itemAmount,
@@ -1550,7 +1558,7 @@ const BlastingMaterialForm = () => {
 
       setFormData({
         purchase_date: new Date().toISOString().split('T')[0],
-        description: formData.description,
+        category_id: formData.category_id,
         quantity: '',
         rate: '',
         transport_charges: '',
@@ -1579,9 +1587,9 @@ const BlastingMaterialForm = () => {
           </div>
 
           <div>
-            <Label htmlFor="description">Item *</Label>
-            <Select id="description" name="description" value={formData.description} onChange={handleChange}>
-              {defaultItems.map(item => <option key={item} value={item}>{item}</option>)}
+            <Label htmlFor="category_id">Item *</Label>
+            <Select id="category_id" name="category_id" value={formData.category_id} onChange={handleChange}>
+              {defaultItems.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </Select>
           </div>
 
@@ -1823,16 +1831,22 @@ const PlantExpenseForm = () => {
   const [editingId, setEditingId] = useState(null);
   const [justSaved, setJustSaved] = useState(false);
 
-  // Categories from expense_categories DB (PLANT_EXPENSE type) with fallback
+  // Categories from expense_categories DB (PLANT_EXPENSE type)
   const categories = plantExpenseCategories;
 
   const [formData, setFormData] = useState({
     expense_date: new Date().toISOString().split('T')[0],
-    category: categories[0] || '',
+    category_id: categories[0]?.value || '',
     description: '',
     amount: '',
     remarks: '',
   });
+
+  React.useEffect(() => {
+    if (!formData.category_id && categories.length > 0) {
+      setFormData(prev => ({ ...prev, category_id: categories[0].value }));
+    }
+  }, [categories, formData.category_id]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1844,7 +1858,7 @@ const PlantExpenseForm = () => {
     setEditingId(exp.id);
     setFormData({
       expense_date: exp.expense_date,
-      category: exp.category || categories[0] || '',
+      category_id: String(exp.category_id || categories.find(opt => opt.label === exp.category)?.value || categories[0]?.value || ''),
       description: exp.description || '',
       amount: exp.amount?.toString() || '',
       remarks: exp.remarks || '',
@@ -1870,7 +1884,7 @@ const PlantExpenseForm = () => {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormData({ expense_date: new Date().toISOString().split('T')[0], category: categories[0] || '', description: '', amount: '', remarks: '' });
+    setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: categories[0]?.value || '', description: '', amount: '', remarks: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -1880,9 +1894,11 @@ const PlantExpenseForm = () => {
     setIsSubmitting(true);
 
     try {
+      const selectedCategory = categories.find(item => item.value === formData.category_id);
       const payload = {
         expense_date: formData.expense_date,
-        category: formData.category,
+        category_id: formData.category_id,
+        category: selectedCategory?.label || '',
         description: formData.description,
         amount: parseFloat(formData.amount) || 0,
         remarks: formData.remarks || null,
@@ -1901,7 +1917,7 @@ const PlantExpenseForm = () => {
         setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
-      setFormData({ expense_date: new Date().toISOString().split('T')[0], category: formData.category, description: '', amount: '', remarks: '' });
+      setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: formData.category_id, description: '', amount: '', remarks: '' });
     } catch (err) {
       setError(err.message || 'Failed to save');
     } finally {
@@ -1923,9 +1939,9 @@ const PlantExpenseForm = () => {
             <Input type="date" id="expense_date" name="expense_date" value={formData.expense_date} onChange={handleChange} required />
           </div>
           <div>
-            <Label htmlFor="category">Category *</Label>
-            <Select id="category" name="category" value={formData.category} onChange={handleChange}>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            <Label htmlFor="category_id">Category *</Label>
+            <Select id="category_id" name="category_id" value={formData.category_id} onChange={handleChange}>
+              {categories.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
             </Select>
           </div>
           <div>

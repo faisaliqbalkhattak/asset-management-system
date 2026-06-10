@@ -7,11 +7,33 @@
 // =====================================================
 
 const BaseRepository = require('./BaseRepository');
+const ExpenseCategoryRepository = require('./ExpenseCategoryRepository');
 const { get, all } = require('../db');
 
 class PlantExpenseRepository extends BaseRepository {
     constructor() {
         super('plant_expense');
+    }
+
+    resolveCategoryId(data) {
+        if (data.category_id) return data.category_id;
+
+        const candidateName = data.category_name || data.category;
+        if (!candidateName) return null;
+
+        const category = ExpenseCategoryRepository.findByNameAndType(String(candidateName).trim(), 'PLANT_EXPENSE');
+        return category ? category.id : null;
+    }
+
+    withCategoryFields(data) {
+        const categoryId = this.resolveCategoryId(data);
+        const category = categoryId ? ExpenseCategoryRepository.findById(categoryId) : null;
+
+        return {
+            ...data,
+            category_id: categoryId,
+            category: category ? category.category_name : (data.category || data.category_name || ''),
+        };
     }
 
     /**
@@ -26,21 +48,41 @@ class PlantExpenseRepository extends BaseRepository {
      * Create a new plant expense entry
      */
     create(data) {
-        return super.create({
+        return super.create(this.withCategoryFields({
             ...data,
             day_name: this.getDayName(data.expense_date)
-        });
+        }));
     }
 
     /**
      * Update an existing entry
      */
     update(id, data) {
-        const updateData = { ...data };
+        const updateData = this.withCategoryFields(data);
         if (data.expense_date) {
             updateData.day_name = this.getDayName(data.expense_date);
         }
         return super.update(id, updateData);
+    }
+
+    findById(id) {
+        return get(
+            `SELECT pe.*, ec.category_name AS category_name, ec.category_code AS category_code
+             FROM ${this.tableName} pe
+             LEFT JOIN expense_categories ec ON pe.category_id = ec.id
+             WHERE pe.id = ?`,
+            [id]
+        );
+    }
+
+    findAll() {
+        return all(
+            `SELECT pe.*, ec.category_name AS category_name, ec.category_code AS category_code
+             FROM ${this.tableName} pe
+             LEFT JOIN expense_categories ec ON pe.category_id = ec.id
+             ORDER BY pe.expense_date DESC, pe.id DESC`,
+            []
+        );
     }
 
     /**
@@ -48,9 +90,11 @@ class PlantExpenseRepository extends BaseRepository {
      */
     getByDateRange(startDate, endDate) {
         const sql = `
-            SELECT * FROM ${this.tableName}
-            WHERE expense_date >= ? AND expense_date <= ?
-            ORDER BY expense_date DESC, id DESC
+            SELECT pe.*, ec.category_name AS category_name, ec.category_code AS category_code
+            FROM ${this.tableName} pe
+            LEFT JOIN expense_categories ec ON pe.category_id = ec.id
+            WHERE pe.expense_date >= ? AND pe.expense_date <= ?
+            ORDER BY pe.expense_date DESC, pe.id DESC
         `;
         return all(sql, [startDate, endDate]);
     }

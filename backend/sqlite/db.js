@@ -949,6 +949,9 @@ function createTables() {
         `ALTER TABLE generator_operation ADD COLUMN remarks TEXT`,
         // Excavator: fuel consumption rate per hour
         `ALTER TABLE excavator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
+        // Dynamic expense categories for blasting and plant expense tables
+        `ALTER TABLE blasting_material ADD COLUMN category_id INTEGER`,
+        `ALTER TABLE plant_expense ADD COLUMN category_id INTEGER`,
         // Expense categories: category_type for sub-categories
         `ALTER TABLE expense_categories ADD COLUMN category_type TEXT DEFAULT 'MAIN'`,
         // Plant mess: rename table and monthly summary column
@@ -988,6 +991,58 @@ function createTables() {
             // Column already exists - ignore
         }
     });
+
+    try {
+        db.run(`
+            UPDATE blasting_material
+            SET category_id = (
+                SELECT ec.id
+                FROM expense_categories ec
+                WHERE ec.category_type = 'BLASTING_ITEM'
+                  AND LOWER(ec.category_name) = LOWER(blasting_material.description)
+                LIMIT 1
+            )
+            WHERE category_id IS NULL AND description IS NOT NULL
+        `);
+
+        db.run(`
+            UPDATE plant_expense
+            SET category_id = (
+                SELECT ec.id
+                FROM expense_categories ec
+                WHERE ec.category_type = 'PLANT_EXPENSE'
+                  AND LOWER(ec.category_name) = LOWER(plant_expense.category)
+                LIMIT 1
+            )
+            WHERE category_id IS NULL AND category IS NOT NULL
+        `);
+
+        db.run(`
+            UPDATE plant_expense
+            SET category_id = (
+                SELECT ec.id
+                FROM expense_categories ec
+                WHERE ec.category_type = 'PLANT_EXPENSE'
+                  AND LOWER(ec.category_name) = LOWER('Plant Rent')
+                LIMIT 1
+            )
+            WHERE category_id IS NULL AND LOWER(category) IN (LOWER('Rent of plant.'), LOWER('Plant Rent'))
+        `);
+
+        db.run(`
+            UPDATE plant_expense
+            SET category_id = (
+                SELECT ec.id
+                FROM expense_categories ec
+                WHERE ec.category_type = 'PLANT_EXPENSE'
+                  AND LOWER(ec.category_name) = LOWER('Plant Expense')
+                LIMIT 1
+            )
+            WHERE category_id IS NULL AND LOWER(category) IN (LOWER('Plant Expense'), LOWER('Plant Expenses'))
+        `);
+    } catch (error) {
+        console.warn('Category backfill skipped:', error.message);
+    }
 }
 
 module.exports.createTables = createTables;
