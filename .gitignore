@@ -13,6 +13,7 @@ dist_pkg/
 frontend/build/
 build/
 electron/dist/
+D:\asset-management-system\electron\dist\Asset Management System Setup 1.0.0.exe
 
 # Database files
 *.db
