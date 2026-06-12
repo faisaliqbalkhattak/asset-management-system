@@ -377,9 +377,11 @@ const GeneratorForm = () => {
           <div>
             <Label htmlFor="fuel_consumption_rate">Fuel Rate/Hr (L/hr)</Label>
             <Input type="number" id="fuel_consumption_rate" name="fuel_consumption_rate" value={formData.fuel_consumption_rate} onChange={handleChange} placeholder="e.g. 12" step="0.01" />
-            {fuelConsumptionRate > 0 && timingHours > 0 && (
-              <span className="text-xs text-blue-600">{fuelConsumptionRate} L/hr × {timingHours} hrs = {effectiveFuelConsumed.toFixed(2)} L</span>
-            )}
+            <div className="mt-1 min-h-[1.25rem] text-xs text-blue-600">
+              {fuelConsumptionRate > 0 && timingHours > 0
+                ? `${fuelConsumptionRate} L/hr × ${timingHours} hrs = ${effectiveFuelConsumed.toFixed(2)} L`
+                : 'Enter fuel rate/hr and hours to see the auto-calculated fuel consumed.'}
+            </div>
           </div>
 
           <div>
