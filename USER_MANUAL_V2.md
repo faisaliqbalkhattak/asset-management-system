@@ -19,6 +19,8 @@ This application manages the full lifecycle of a plant/quarry operation:
 
 The landing screen shows quick-glance statistics — total equipment, active employees, and recent activity. The top navigation bar provides access to every module.
 
+![Dashboard](images/show%20the%20summary%20of%20how%20nuch%20data%20had%20you%20entered%20and%20in%20which%20table.png)
+
 ---
 
 ## 3. Modules
@@ -30,6 +32,8 @@ The landing screen shows quick-glance statistics — total equipment, active emp
 | **Human Resources** | Add employees with designations and base salaries. |
 | **Equipment** | Register generators, excavators, loaders, and dumpers. Toggle the *Active* flag to show/hide equipment in daily entry forms. Equipment registered here automatically generates columns in summary reports. |
 | **Expense Categories** | Create categories for blasting items, plant expenses, and miscellaneous items. |
+
+![Master Data](images/master%20table.%20the%20assets%20you%20want%20to%20manage.png)
 
 ### 3.2 Daily Entries
 
@@ -44,6 +48,8 @@ The primary data-entry module, organised into tabs:
 | **Blasting Material** | Explosive purchases and usage. |
 | **Plant Mess / Plant Exp / Misc** | Kitchen expenses, plant repairs, and general miscellaneous costs. |
 | **Salaries** | Monthly salary records generated from base salary in Masters. Adjustable for deductions or bonuses. |
+
+![Daily Entries](images/daily%20entry.png)
 
 All forms display toast notifications on success or error.
 
@@ -82,6 +88,8 @@ Use the **Edit** and **Delete** buttons in the Production History table to corre
 | Est. Stock Value | Remaining stock × expected rate. |
 | Total Revenue | Sales + stock value. |
 
+![Production](images/productions.png)
+
 ### 3.4 Monthly Summary
 
 A consolidated expense report with dynamically generated columns:
@@ -90,6 +98,8 @@ A consolidated expense report with dynamically generated columns:
 - **Dumper columns** — one column per registered dumper, plus a misc column each.
 - **Fixed categories** — Blasting, Plant Mess, Plant Expenses, HR Salaries.
 - **Misc excluded** — miscellaneous expenses are tracked in a separate reference card and are **not** included in the main Total.
+
+![Monthly Summary](images/monthly%20summary.png)
 
 Use the Month/Year filters to narrow the view. Summary cards show the expense breakdown, misc reference totals, and overall balance.
 
@@ -100,6 +110,8 @@ Annual view of all expense categories by month.
 - **Dynamic categories** — cards and table columns update automatically when equipment is added or removed in Masters.
 - **Quarterly breakdown** — expenses, production, and cost-per-CFT per quarter.
 - **Misc excluded** — same treatment as Monthly Summary.
+
+![Yearly Summary](images/yearly%20summary%20for%20the%20selected%20year.png)
 
 ### 3.6 Profit Sharing
 
@@ -122,6 +134,8 @@ Profit is then split according to the configured partner ratios.
 | Wrong daily entry | **Transactions** page — filter, then Edit or Delete. |
 | Wrong production entry | **Production** page → History table → Edit / Delete. |
 | Wrong monthly sales | **Production** page → Monthly Sales History → Edit. |
+
+![Transactions](images/see%20the%20entries%20you%20had%20made.png)
 
 ---
 
