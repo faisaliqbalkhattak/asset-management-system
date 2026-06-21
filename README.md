@@ -1,119 +1,141 @@
 # Asset Management System
 
-An offline desktop application for managing plant and quarry operations — equipment, vehicles, daily production, expenses, and profit distribution.
+Offline desktop software for plant and quarry operations: equipment, vehicles, daily production, expenses, and partner profit sharing.
 
-## Tech Stack
+## Stack
 
-| Layer     | Technology                     |
-|-----------|--------------------------------|
-| Database  | SQLite (better-sqlite3)        |
-| API       | Express.js                     |
-| Frontend  | React, Tailwind CSS            |
-| Runtime   | Node.js                        |
-| Desktop   | Electron                       |
+| Layer | Technology |
+|---|---|
+| Database | SQLite via `sql.js` |
+| API | Express.js |
+| Frontend | React, React Router, Tailwind CSS, Axios |
+| Desktop | Electron |
+| Runtime | Node.js 18+ |
 
-## Features
+## What The App Does
 
-| Module | Description |
-|--------|-------------|
-| **Master Data** | Register equipment (generators, excavators, loaders, dumpers), employees, and expense categories. All downstream reports auto-update when masters change. |
-| **Daily Entries** | Tabbed forms for generators, excavators, loaders, dumpers, blasting material, plant mess, plant expenses, misc expenses, and salaries. |
-| **Production** | Daily gravel-to-aggregate tracking with clay/dust deduction. Monthly allowance, sales, and stock valuation management. Edit and delete past entries. |
-| **Monthly Summary** | Dynamic expense table with columns generated from registered equipment. Misc expenses tracked separately and excluded from totals. |
-| **Yearly Summary** | Annual expense breakdown by month with quarterly analysis. Categories driven entirely by master data. |
-| **Profit Sharing** | Partner profit distribution based on revenue (sales + stock value) minus total operational expenses. |
-| **Transactions** | Unified view of all entries across the system with filtering, editing, and deletion. |
+The app is split into three parts:
 
-## Screenshots
+1. `backend/` hosts the API on port `3001`, initializes the database, and serves the React build when present.
+2. `frontend/` contains the React UI with the visible routes and all data-entry/reporting screens.
+3. `electron/` starts the backend, opens the desktop window, and packages the app into a Windows installer.
 
-### Dashboard
-![Dashboard](images/show%20the%20summary%20of%20how%20nuch%20data%20had%20you%20entered%20and%20in%20which%20table.png)
+## Main Screens
 
-### Master Data — Register Assets
-![Master Data](images/master%20table.%20the%20assets%20you%20want%20to%20manage.png)
+| Screen | Purpose |
+|---|---|
+| Dashboard | Overview of current operational data |
+| Daily Entries | Generator, excavator, loader, dumper, blasting, plant mess, plant expense, misc expense, and salary entries |
+| Masters | Equipment, employees, and expense category management |
+| Transactions | Unified view of recorded entries with filtering and editing |
+| Production | Daily gravel-to-aggregate tracking and monthly production summaries |
+| Monthly Summary | Month-wise expense and operational summary tables |
+| Profit Sharing | Partner ledger and profit distribution workflows |
+| Yearly Summary | Annual summary and analysis views |
 
-### Daily Entries
-![Daily Entries](images/daily%20entry.png)
+## Data Flow
 
-### Production Tracking
-![Production](images/productions.png)
+- Frontend API calls go to `/api` through `frontend/src/services/api.js`.
+- The global data store lives in `frontend/src/context/DataContext.js`.
+- Backend routes are organized under `backend/sqlite/routes/` and backed by repositories in `backend/sqlite/repositories/`.
+- Electron loads `http://localhost:3001` and starts the backend process automatically.
 
-### Monthly Summary
-![Monthly Summary](images/monthly%20summary.png)
-
-### Yearly Summary
-![Yearly Summary](images/yearly%20summary%20for%20the%20selected%20year.png)
-
-### Transactions
-![Transactions](images/see%20the%20entries%20you%20had%20made.png)
-
-## Quick Start
+## Setup
 
 ### Prerequisites
 
-- Node.js v18+
+- Node.js v18 or later
 - npm
 
-### Install
+### Install Dependencies
 
 ```bash
-# Backend
-cd backend && npm install
+cd backend
+npm install
 
-# Frontend
-cd ../frontend && npm install
+cd ../frontend
+npm install
 
-# Electron (desktop wrapper)
-cd ../electron && npm install
+cd ../electron
+npm install
 ```
 
-### Initialize Database
+### Initialize The Database
 
 ```bash
 cd backend
 npm run db:init
 ```
 
-### Run (Development)
+### Run The Desktop App In Development
 
 ```bash
 cd electron
 npm start
 ```
 
-### Build Installer
+### Build The Windows Installer
 
 ```bash
 cd electron
 npm run dist
 ```
 
-The packaged application will appear in `electron/dist/`.
+The packaged installer is generated in `electron/dist/`.
 
-To try the Windows installer, download the `.exe` from the repo and run it. The database is created automatically in the same directory where you download the app.
+## Useful Scripts
+
+### Root
+
+- `npm start` - launches Electron
+- `npm run build` - creates the packaged desktop build
+
+### Backend
+
+- `npm start` - starts the Express API
+- `npm run dev` - starts the API with nodemon
+- `npm run db:init` - creates or initializes the database
+- `npm run db:seed` - seeds sample data
+- `npm run db:inspect` - inspects database contents
+
+### Frontend
+
+- `npm start` - starts the React dev server
+- `npm run build` - creates the production frontend bundle
+- `npm test` - runs the React test runner
+
+### Electron
+
+- `npm start` - runs the desktop shell
+- `npm run dist` - builds the installer
 
 ## Project Structure
 
 ```
-├── backend/               Express.js API + SQLite database
-│   ├── sqlite/            Repositories, controllers, routes, seeds
-│   ├── config/            Environment configuration
-│   ├── middlewares/        Error handling, validation
-│   └── scripts/           Database initialization utilities
-├── frontend/              React + Tailwind CSS
-│   └── src/
-│       ├── pages/         DailyEntries, Production, MonthlySummary, YearlySummary, Transactions
-│       ├── components/    Reusable UI (Toast, Input, Select, Button, etc.)
-│       ├── context/       DataContext — global state management
-│       └── services/      API service layer
-├── electron/              Electron desktop shell
-│   ├── main.js            Main process — starts backend, creates window
-│   └── preload.js         Context isolation bridge
+├── backend/
+│   ├── app.js
+│   ├── config/
+│   ├── middlewares/
+│   ├── scripts/
+│   └── sqlite/
+├── electron/
+│   ├── main.js
+│   └── preload.js
+├── frontend/
+│   ├── src/
+│   │   ├── App.js
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── utils/
+│   └── public/
+├── images/
 ├── README.md
-└── USER_MANUAL.md
+└── USER_MANUAL_V2.md
 ```
 
 ## Documentation
 
-- [User Manual](USER_MANUAL_V2.md) — complete guide to every module and workflow
+- [User Manual](USER_MANUAL_V2.md) - complete guide to the workflows and screens
 
