@@ -6,8 +6,7 @@
  * Features:
  * ---------
  * - RESTful API endpoints
- * - JWT authentication
- * - SQLite database (WAL mode)
+ * - SQLite database
  * - Error handling middleware
  * - Request logging
  * 
@@ -16,7 +15,6 @@
  * - PORT: Server port (default 3001)
  * - NODE_ENV: development | test | production
  * - DB_PATH: SQLite database file path
- * - JWT_SECRET: Secret key for JWT signing
  */
 
 const express = require('express');
