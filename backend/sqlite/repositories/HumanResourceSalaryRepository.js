@@ -21,14 +21,19 @@ class HumanResourceSalaryRepository extends BaseRepository {
         const baseSalary = parseFloat(data.base_salary) || 0;
         const overtime = parseFloat(data.overtime) || 0;
         const deductions = parseFloat(data.deductions) || 0;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
         const netSalary = baseSalary + overtime - deductions;
+        const totalAmount = netSalary + miscExpense;
 
         return {
             ...data,
             base_salary: baseSalary,
             overtime: overtime,
             deductions: deductions,
-            net_salary: Math.round(netSalary * 100) / 100
+            misc_expense: Math.round(miscExpense * 100) / 100,
+            net_salary: Math.round(netSalary * 100) / 100,
+            spending_amount: Math.round(netSalary * 100) / 100,
+            total_amount: Math.round(totalAmount * 100) / 100
         };
     }
 

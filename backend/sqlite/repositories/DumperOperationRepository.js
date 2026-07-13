@@ -23,44 +23,29 @@ class DumperOperationRepository extends BaseRepository {
     }
 
     /**
-     * Resolve dumper_name to equipment_id
-     */
-    resolveEquipmentId(data) {
-        const cleaned = { ...data };
-        if (data.dumper_name) {
-            const equip = get(
-                `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'DUMPER'`,
-                [data.dumper_name]
-            );
-            if (equip) {
-                cleaned.equipment_id = equip.id;
-            }
-            delete cleaned.dumper_name;
-        }
-        return cleaned;
-    }
-
-    /**
      * Calculate totals before save
      * total_trips = gravel_trips + clay_trips
      * total_cft = total_trips * cft_per_trip
      * trip_amount = total_cft * rate_per_cft
-         * misc_expense = misc_fuel_qty * misc_fuel_rate
-         * total_amount = trip_amount (misc tracked separately, NOT added to total)
+     * fuel_amount = misc_fuel_qty * misc_fuel_rate (direct expense, part of spending)
+     * spending_amount = trip_amount + fuel_amount
+     * total_amount = spending_amount + misc_expense_2 (misc added to total only)
      */
     calculateTotals(data) {
         const gravelTrips = parseInt(data.gravel_trips) || 0;
         const clayTrips = parseInt(data.clay_trips) || 0;
         const cftPerTrip = parseFloat(data.cft_per_trip) || 838;
         const ratePerCft = parseFloat(data.rate_per_cft) || 1.9;
-            const miscFuelQty = parseFloat(data.misc_fuel_qty) || 0;
-            const miscFuelRate = parseFloat(data.misc_fuel_rate) || 0;
+        const miscFuelQty = parseFloat(data.misc_fuel_qty) || 0;
+        const miscFuelRate = parseFloat(data.misc_fuel_rate) || 0;
+        const miscExpense2 = parseFloat(data.misc_expense_2) || 0;
 
         const totalTrips = gravelTrips + clayTrips;
         const totalCft = totalTrips * cftPerTrip;
         const tripAmount = totalCft * ratePerCft;
-        const totalAmount = tripAmount;
-            const miscExpense = miscFuelQty * miscFuelRate;
+        const fuelAmount = miscFuelQty * miscFuelRate;
+        const spendingAmount = tripAmount + fuelAmount;
+        const totalAmount = spendingAmount + miscExpense2;
 
         return {
             ...data,
@@ -68,8 +53,12 @@ class DumperOperationRepository extends BaseRepository {
             total_trips: totalTrips,
             total_cft: Math.round(totalCft * 100) / 100,
             trip_amount: Math.round(tripAmount * 100) / 100,
-                misc_expense: Math.round(miscExpense * 100) / 100,
-                total_amount: Math.round(totalAmount * 100) / 100
+            misc_fuel_qty: miscFuelQty,
+            misc_fuel_rate: miscFuelRate,
+            fuel_amount: Math.round(fuelAmount * 100) / 100,
+            misc_expense_2: Math.round(miscExpense2 * 100) / 100,
+            spending_amount: Math.round(spendingAmount * 100) / 100,
+            total_amount: Math.round(totalAmount * 100) / 100
         };
     }
 
@@ -77,24 +66,24 @@ class DumperOperationRepository extends BaseRepository {
      * Create a new dumper operation
      */
     create(data) {
-        const resolved = this.resolveEquipmentId(data);
         const processedData = this.calculateTotals({
-            ...resolved,
-            day_name: this.getDayName(resolved.trip_date)
+            ...data,
+            day_name: this.getDayName(data.trip_date)
         });
-        return super.create(processedData);
+        const result = super.create(processedData);
+        return this.findByIdWithName(result.id);
     }
 
     /**
      * Update an existing dumper operation
      */
     update(id, data) {
-        const resolved = this.resolveEquipmentId(data);
-        const processedData = this.calculateTotals(resolved);
-        if (resolved.trip_date) {
-            processedData.day_name = this.getDayName(resolved.trip_date);
+        const processedData = this.calculateTotals(data);
+        if (data.trip_date) {
+            processedData.day_name = this.getDayName(data.trip_date);
         }
-        return super.update(id, processedData);
+        super.update(id, processedData);
+        return this.findByIdWithName(id);
     }
 
     /**
@@ -178,7 +167,7 @@ class DumperOperationRepository extends BaseRepository {
                 COALESCE(SUM(d.trip_amount), 0) as total,
                 COALESCE(SUM(d.total_trips), 0) as total_trips,
                 COALESCE(SUM(d.total_cft), 0) as total_cft,
-                COALESCE(SUM(d.misc_expense), 0) as misc_total,
+                COALESCE(SUM(d.fuel_amount), 0) as fuel_total,
                 COALESCE(SUM(d.total_amount), 0) as grand_total,
                 COUNT(*) as entry_count
             FROM ${this.tableName} d
@@ -202,7 +191,7 @@ class DumperOperationRepository extends BaseRepository {
                 COALESCE(SUM(d.trip_amount), 0) as total,
                 COALESCE(SUM(d.total_trips), 0) as total_trips,
                 COALESCE(SUM(d.total_cft), 0) as total_cft,
-                COALESCE(SUM(d.misc_expense), 0) as misc_total,
+                COALESCE(SUM(d.fuel_amount), 0) as fuel_total,
                 COALESCE(SUM(d.total_amount), 0) as grand_total,
                 COUNT(*) as entry_count
             FROM ${this.tableName} d

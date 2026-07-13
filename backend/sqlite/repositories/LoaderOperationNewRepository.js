@@ -23,26 +23,6 @@ class LoaderOperationNewRepository extends BaseRepository {
     }
 
     /**
-     * Resolve equipment_name to equipment_id
-     */
-    resolveEquipmentId(data) {
-        const cleaned = { ...data };
-        if (Object.prototype.hasOwnProperty.call(data, 'equipment_name')) {
-            if (data.equipment_name) {
-                const equip = get(
-                    `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'LOADER'`,
-                    [data.equipment_name]
-                );
-                if (equip) {
-                    cleaned.equipment_id = equip.id;
-                }
-            }
-            delete cleaned.equipment_name;
-        }
-        return cleaned;
-    }
-
-    /**
      * Calculate totals before save
      * fuel_amount = fuel_consumed * fuel_rate
      * defunct_cost = defunct_hours * defunct_cost_per_hour
@@ -57,12 +37,18 @@ class LoaderOperationNewRepository extends BaseRepository {
 
         const fuelAmount = fuelConsumed * fuelRate;
         const defunctCost = defunctHours * defunctCostPerHour;
-        const totalAmount = rentPerDay + fuelAmount - defunctCost;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
+        const miscExpense2 = parseFloat(data.misc_expense_2) || 0;
+        const spendingAmount = rentPerDay + fuelAmount - defunctCost;
+        const totalAmount = spendingAmount + miscExpense + miscExpense2;
 
         return {
             ...data,
             fuel_amount: Math.round(fuelAmount * 100) / 100,
             defunct_cost: Math.round(defunctCost * 100) / 100,
+            misc_expense: Math.round(miscExpense * 100) / 100,
+            misc_expense_2: Math.round(miscExpense2 * 100) / 100,
+            spending_amount: Math.round(spendingAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100
         };
     }
@@ -71,24 +57,24 @@ class LoaderOperationNewRepository extends BaseRepository {
      * Create a new loader operation
      */
     create(data) {
-        const resolved = this.resolveEquipmentId(data);
         const processedData = this.calculateTotals({
-            ...resolved,
-            day_name: this.getDayName(resolved.operation_date)
+            ...data,
+            day_name: this.getDayName(data.operation_date)
         });
-        return super.create(processedData);
+        const result = super.create(processedData);
+        return this.findByIdWithName(result.id);
     }
 
     /**
      * Update an existing loader operation
      */
     update(id, data) {
-        const resolved = this.resolveEquipmentId(data);
-        const processedData = this.calculateTotals(resolved);
-        if (resolved.operation_date) {
-            processedData.day_name = this.getDayName(resolved.operation_date);
+        const processedData = this.calculateTotals(data);
+        if (data.operation_date) {
+            processedData.day_name = this.getDayName(data.operation_date);
         }
-        return super.update(id, processedData);
+        super.update(id, processedData);
+        return this.findByIdWithName(id);
     }
 
     /**

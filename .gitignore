@@ -36,6 +36,9 @@ D:\asset-management-system\electron\dist\Asset Management System Setup 1.0.0.exe
 Thumbs.db
 desktop.ini
 
+# Runtime files
+*.pid
+
 # IDE files
 .vscode/
 .idea/

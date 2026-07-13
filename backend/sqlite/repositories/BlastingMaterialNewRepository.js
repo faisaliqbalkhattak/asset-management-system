@@ -59,13 +59,17 @@ class BlastingMaterialRepository extends BaseRepository {
         const quantity = parseFloat(data.quantity) || 0;
         const rate = parseFloat(data.rate) || 0;
         const transportCharges = parseFloat(data.transport_charges) || 0;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
 
         const amount = quantity * rate;
-        const totalAmount = amount + transportCharges;
+        const spendingAmount = amount + transportCharges;
+        const totalAmount = spendingAmount + miscExpense;
 
         return {
             ...data,
             amount: Math.round(amount * 100) / 100,
+            misc_expense: Math.round(miscExpense * 100) / 100,
+            spending_amount: Math.round(spendingAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100
         };
     }

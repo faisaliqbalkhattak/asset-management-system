@@ -112,9 +112,9 @@ const ProfitSharing = () => {
     loaderOperations.filter(op => filterByMonth(op.operation_date))
       .forEach(op => { expenses.loaders += parseFloat(op.total_amount) || 0; });
 
-    // Dumpers (trip amount only, excluding misc)
+    // Dumpers (total_amount includes trip amount + misc)
     dumperOperations.filter(op => filterByMonth(op.trip_date))
-      .forEach(op => { expenses.dumpers += parseFloat(op.trip_amount) || 0; });
+      .forEach(op => { expenses.dumpers += parseFloat(op.total_amount) || 0; });
 
     // Blasting Materials
     blastingMaterials.filter(m => filterByMonth(m.purchase_date))
@@ -122,17 +122,17 @@ const ProfitSharing = () => {
 
     // Plant Mess Expenses
     plantMessExpenses.filter(e => filterByMonth(e.expense_date))
-      .forEach(e => { expenses.plant_mess += parseFloat(e.amount) || 0; });
+      .forEach(e => { expenses.plant_mess += parseFloat(e.total_amount) || 0; });
 
     // Plant Expenses
     plantExpenses.filter(e => filterByMonth(e.expense_date))
-      .forEach(e => { expenses.plant_exp += parseFloat(e.amount) || 0; });
+      .forEach(e => { expenses.plant_exp += parseFloat(e.total_amount) || 0; });
 
     // Salaries (salary_month is YYYY-MM format)
     salaries.filter(s => {
       const salaryDate = s.salary_month ? s.salary_month + '-01' : null;
       return filterByMonth(salaryDate);
-    }).forEach(s => { expenses.human_res += parseFloat(s.net_salary) || 0; });
+    }).forEach(s => { expenses.human_res += parseFloat(s.total_amount) || 0; });
 
     expenses.total = Object.values(expenses).reduce((sum, val) => sum + val, 0);
 

@@ -76,11 +76,19 @@ router.post('/', (req, res, next) => {
             });
         }
         
-        // Validation - equipment_name is required
-        if (!req.body.equipment_name) {
+        // Validation - equipment_id is required
+        if (!req.body.equipment_id) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'equipment_name is required. Select a generator.' 
+                error: 'equipment_id is required. Select a generator.' 
+            });
+        }
+        
+        // Validation - equipment_id must be numeric
+        if (isNaN(parseInt(req.body.equipment_id, 10))) {
+            return res.status(400).json({
+                success: false,
+                error: 'equipment_id must be a valid number'
             });
         }
         

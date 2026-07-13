@@ -140,6 +140,14 @@ async function initializeDatabase() {
     } catch(err) {
         console.error("Error creating tables:", err);
     }
+    
+    // Run pending migrations
+    try {
+        runMigrations();
+    } catch(err) {
+        console.error("Error running migrations:", err);
+        throw err;
+    }
 
     // ONLY seed on first run (when the .db file was just created)
     // On subsequent runs, the file already exists so isNewDatabase = false
@@ -191,15 +199,43 @@ function getDatabase() {
 }
 
 /**
- * Save database to file
+ * Save database to file atomically.
+ * Writes to a temporary file first, then renames it to the target path.
+ * This prevents database corruption if the process crashes during write.
  * @param {boolean} silent - If true, don't log the save message
  */
 function saveDatabase(silent = false) {
-    if (db) {
-        const data = db.export();
-        const buffer = Buffer.from(data);
-        fs.writeFileSync(config.dbPath, buffer);
+    if (!db) return;
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    const tempPath = config.dbPath + '.tmp';
+    try {
+        fs.writeFileSync(tempPath, buffer);
+        
+        try {
+            // Primary attempt: atomic rename (works on POSIX)
+            fs.renameSync(tempPath, config.dbPath);
+        } catch (renameErr) {
+            // Fallback for Windows locking/permission issues (EPERM, EBUSY, EXDEV)
+            if (['EPERM', 'EBUSY', 'EXDEV'].includes(renameErr.code)) {
+                fs.copyFileSync(tempPath, config.dbPath);
+                fs.unlinkSync(tempPath);
+            } else {
+                throw renameErr;
+            }
+        }
+        
         if (!silent && config.isDev) console.log('✓ Database saved to disk');
+    } catch (error) {
+        console.error('Failed to save database:', error);
+        try {
+            if (fs.existsSync(tempPath)) {
+                fs.unlinkSync(tempPath);
+            }
+        } catch (cleanupError) {
+            // Ignore cleanup errors
+        }
+        throw error;
     }
 }
 
@@ -208,7 +244,13 @@ function saveDatabase(silent = false) {
  */
 function startAutoSave() {
     if (saveTimer) clearInterval(saveTimer);
-    saveTimer = setInterval(() => saveDatabase(true), config.autoSaveInterval);
+    saveTimer = setInterval(() => {
+        try {
+            saveDatabase(true);
+        } catch (error) {
+            console.error('Auto-save failed:', error);
+        }
+    }, config.autoSaveInterval);
 }
 
 /**
@@ -401,6 +443,64 @@ function prepare(sql) {
 }
 
 // =====================================================
+// MIGRATIONS
+// =====================================================
+
+/**
+ * Run pending database migrations
+ */
+function runMigrations() {
+    const database = getDatabase();
+    
+    // Create migrations tracking table
+    database.run(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    
+    // Get list of applied migrations
+    const appliedRows = database.exec('SELECT version FROM schema_migrations ORDER BY version');
+    const appliedVersions = new Set();
+    if (appliedRows && appliedRows[0] && appliedRows[0].values) {
+        appliedRows[0].values.forEach(row => appliedVersions.add(row[0]));
+    }
+    
+    // Load migration files
+    const migrationsDir = path.join(__dirname, 'migrations');
+    if (!fs.existsSync(migrationsDir)) {
+        return;
+    }
+    
+    const migrationFiles = fs.readdirSync(migrationsDir)
+        .filter(f => f.endsWith('.js'))
+        .sort();
+    
+    for (const file of migrationFiles) {
+        const migration = require(path.join(migrationsDir, file));
+        if (!migration.version || appliedVersions.has(migration.version)) {
+            continue;
+        }
+        
+        console.log(`Running migration ${migration.version}: ${migration.name || file}`);
+        try {
+            database.run('BEGIN TRANSACTION');
+            migration.up(database);
+            database.run(
+                'INSERT INTO schema_migrations (version) VALUES (?)',
+                [migration.version]
+            );
+            database.run('COMMIT');
+        } catch (error) {
+            database.run('ROLLBACK');
+            console.error(`Migration ${migration.version} failed:`, error);
+            throw error;
+        }
+    }
+}
+
+// =====================================================
 // EXPORTS
 // =====================================================
 module.exports = {
@@ -417,7 +517,8 @@ module.exports = {
     get,
     all,
     exec,
-    config
+    config,
+    runMigrations
 };
 
 function createTables() {
@@ -481,6 +582,11 @@ function createTables() {
         overtime REAL DEFAULT 0,
         deductions REAL DEFAULT 0,
         net_salary REAL DEFAULT 0,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
+        total_amount REAL DEFAULT 0,
+        category_id INTEGER,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -647,6 +753,10 @@ function createTables() {
         amount REAL DEFAULT 0,
         transport_charges REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
+        category_id INTEGER,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -658,6 +768,11 @@ function createTables() {
         day_name TEXT,
         description TEXT,
         amount REAL DEFAULT 0,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
+        total_amount REAL DEFAULT 0,
+        category_id INTEGER,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -670,6 +785,11 @@ function createTables() {
         category TEXT,
         description TEXT,
         amount REAL DEFAULT 0,
+        category_id INTEGER,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
+        total_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -699,8 +819,11 @@ function createTables() {
         fuel_amount REAL DEFAULT 0,
         rent_per_day REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
-            misc_fuel_qty REAL DEFAULT 0,
-            misc_fuel_rate REAL DEFAULT 0,
+        misc_fuel_qty REAL DEFAULT 0,
+        misc_fuel_rate REAL DEFAULT 0,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -724,6 +847,7 @@ function createTables() {
         rent_amount REAL DEFAULT 0,
         fuel_amount REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -748,6 +872,7 @@ function createTables() {
         misc_expense_2 REAL DEFAULT 0,
         misc_description_2 TEXT,
         total_amount REAL DEFAULT 0,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -768,11 +893,12 @@ function createTables() {
         trip_amount REAL DEFAULT 0,
         misc_fuel_qty REAL DEFAULT 0,
         misc_fuel_rate REAL DEFAULT 0,
-        misc_expense REAL DEFAULT 0,
+        fuel_amount REAL DEFAULT 0,
         misc_description TEXT,
         misc_expense_2 REAL DEFAULT 0,
         misc_description_2 TEXT,
         total_amount REAL DEFAULT 0,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -826,6 +952,8 @@ function createTables() {
         stock_at_site_cft REAL DEFAULT 0,
         cost_of_stocked_material REAL DEFAULT 0,
         total_cost REAL DEFAULT 0,
+        allowance_percent REAL DEFAULT 0,
+        allowance_cft REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -887,6 +1015,10 @@ function createTables() {
         rate_amount REAL DEFAULT 0,
         misc_expense_amount REAL DEFAULT 0,
         total_amount REAL DEFAULT 0,
+        category_id INTEGER,
+        misc_expense REAL DEFAULT 0,
+        misc_description TEXT,
+        spending_amount REAL DEFAULT 0,
         remarks TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -926,123 +1058,6 @@ function createTables() {
     `);
 
     // =====================================================
-    // SCHEMA MIGRATIONS - Add new columns to existing tables
-    // Each ALTER TABLE is wrapped in try/catch so it's idempotent
-    // (duplicate column errors are silently ignored)
-    // =====================================================
-    const migrations = [
-        // Misc expense 2 columns for excavator
-        `ALTER TABLE excavator_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
-        `ALTER TABLE excavator_operation ADD COLUMN misc_description_2 TEXT`,
-        // Misc expense 2 columns for loader
-        `ALTER TABLE loader_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
-        `ALTER TABLE loader_operation ADD COLUMN misc_description_2 TEXT`,
-        // Misc expense 2 columns for dumper
-        `ALTER TABLE dumper_operation ADD COLUMN misc_expense_2 REAL DEFAULT 0`,
-        `ALTER TABLE dumper_operation ADD COLUMN misc_description_2 TEXT`,
-        // Dumper misc fuel columns
-        `ALTER TABLE dumper_operation ADD COLUMN misc_fuel_qty REAL DEFAULT 0`,
-        `ALTER TABLE dumper_operation ADD COLUMN misc_fuel_rate REAL DEFAULT 0`,
-        // Generator: fuel consumption rate per hour
-        `ALTER TABLE generator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
-        // Generator: remarks text
-        `ALTER TABLE generator_operation ADD COLUMN remarks TEXT`,
-        // Excavator: fuel consumption rate per hour
-        `ALTER TABLE excavator_operation ADD COLUMN fuel_consumption_rate REAL DEFAULT 0`,
-        // Dynamic expense categories for blasting and plant expense tables
-        `ALTER TABLE blasting_material ADD COLUMN category_id INTEGER`,
-        `ALTER TABLE plant_expense ADD COLUMN category_id INTEGER`,
-        // Expense categories: category_type for sub-categories
-        `ALTER TABLE expense_categories ADD COLUMN category_type TEXT DEFAULT 'MAIN'`,
-        // Plant mess: rename table and monthly summary column
-        `ALTER TABLE langar_expense RENAME TO plant_mess_expense`,
-        `ALTER TABLE monthly_expense_summary RENAME COLUMN langar_total TO plant_mess_total`,
-        // Plant mess: fallback column + data copy (for older SQLite)
-        `ALTER TABLE monthly_expense_summary ADD COLUMN plant_mess_total REAL DEFAULT 0`,
-        `UPDATE monthly_expense_summary SET plant_mess_total = langar_total WHERE plant_mess_total = 0`,
-        // Plant mess: fallback table data copy
-        `INSERT INTO plant_mess_expense (id, expense_date, day_name, description, amount, remarks, created_at, updated_at)
-         SELECT id, expense_date, day_name, description, amount, remarks, created_at, updated_at FROM langar_expense`,
-        // Rename category code for Plant Mess
-        `UPDATE expense_categories SET category_code = 'PLANT_MESS', category_name = 'Plant Mess' WHERE category_code = 'LANGAR'`,
-        // Monthly production summary: allowance_percent for monthly-level allowance deduction
-        `ALTER TABLE monthly_production_summary ADD COLUMN allowance_percent REAL DEFAULT 0`,
-        // Monthly production summary: allowance_cft for stock-level allowance deduction
-        `ALTER TABLE monthly_production_summary ADD COLUMN allowance_cft REAL DEFAULT 0`,
-        // Rename Langar category display name (legacy)
-        `UPDATE expense_categories SET category_name = 'Plant Mess' WHERE category_code IN ('LANGAR', 'PLANT_MESS')`,
-        // Profit sharing: partner paid amounts and extra partners
-        `ALTER TABLE profit_sharing ADD COLUMN partner1_paid_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner2_paid_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner3_share_percentage REAL DEFAULT 25`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner3_share_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner3_sub1_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner3_paid_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner4_share_percentage REAL DEFAULT 25`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner4_share_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner4_sub1_amount REAL DEFAULT 0`,
-        `ALTER TABLE profit_sharing ADD COLUMN partner4_paid_amount REAL DEFAULT 0`,
-    ];
-
-    migrations.forEach(sql => {
-        try {
-            db.run(sql);
-        } catch (e) {
-            // Column already exists - ignore
-        }
-    });
-
-    try {
-        db.run(`
-            UPDATE blasting_material
-            SET category_id = (
-                SELECT ec.id
-                FROM expense_categories ec
-                WHERE ec.category_type = 'BLASTING_ITEM'
-                  AND LOWER(ec.category_name) = LOWER(blasting_material.description)
-                LIMIT 1
-            )
-            WHERE category_id IS NULL AND description IS NOT NULL
-        `);
-
-        db.run(`
-            UPDATE plant_expense
-            SET category_id = (
-                SELECT ec.id
-                FROM expense_categories ec
-                WHERE ec.category_type = 'PLANT_EXPENSE'
-                  AND LOWER(ec.category_name) = LOWER(plant_expense.category)
-                LIMIT 1
-            )
-            WHERE category_id IS NULL AND category IS NOT NULL
-        `);
-
-        db.run(`
-            UPDATE plant_expense
-            SET category_id = (
-                SELECT ec.id
-                FROM expense_categories ec
-                WHERE ec.category_type = 'PLANT_EXPENSE'
-                  AND LOWER(ec.category_name) = LOWER('Plant Rent')
-                LIMIT 1
-            )
-            WHERE category_id IS NULL AND LOWER(category) IN (LOWER('Rent of plant.'), LOWER('Plant Rent'))
-        `);
-
-        db.run(`
-            UPDATE plant_expense
-            SET category_id = (
-                SELECT ec.id
-                FROM expense_categories ec
-                WHERE ec.category_type = 'PLANT_EXPENSE'
-                  AND LOWER(ec.category_name) = LOWER('Plant Expense')
-                LIMIT 1
-            )
-            WHERE category_id IS NULL AND LOWER(category) IN (LOWER('Plant Expense'), LOWER('Plant Expenses'))
-        `);
-    } catch (error) {
-        console.warn('Category backfill skipped:', error.message);
-    }
 }
 
 module.exports.createTables = createTables;

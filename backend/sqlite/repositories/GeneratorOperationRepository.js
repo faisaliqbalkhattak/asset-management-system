@@ -23,24 +23,6 @@ class GeneratorOperationRepository extends BaseRepository {
     }
 
     /**
-     * Resolve equipment_name to equipment_id
-     */
-    resolveEquipmentId(data) {
-        const cleaned = { ...data };
-        if (data.equipment_name) {
-            const equip = get(
-                `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'GENERATOR'`,
-                [data.equipment_name]
-            );
-            if (equip) {
-                cleaned.equipment_id = equip.id;
-            }
-            delete cleaned.equipment_name;
-        }
-        return cleaned;
-    }
-
-    /**
      * Calculate totals before save
      * If fuel_consumption_rate is provided, fuel_consumed = fuel_consumption_rate * timing_hours
      * fuel_amount = fuel_consumed * fuel_rate
@@ -50,22 +32,26 @@ class GeneratorOperationRepository extends BaseRepository {
         const timingHours = parseFloat(data.timing_hours) || 0;
         const fuelConsumptionRate = parseFloat(data.fuel_consumption_rate) || 0;
         let fuelConsumed = parseFloat(data.fuel_consumed) || 0;
-        
+
         // Auto-calculate fuel_consumed from rate * hours if rate is provided
         if (fuelConsumptionRate > 0 && timingHours > 0) {
             fuelConsumed = fuelConsumptionRate * timingHours;
         }
-        
+
         const fuelRate = parseFloat(data.fuel_rate) || 0;
         const fuelAmount = fuelConsumed * fuelRate;
         const rentPerDay = parseFloat(data.rent_per_day) || 0;
-        const totalAmount = fuelAmount + rentPerDay;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
+        const spendingAmount = fuelAmount + rentPerDay;
+        const totalAmount = spendingAmount + miscExpense;
 
         return {
             ...data,
             fuel_consumption_rate: Math.round(fuelConsumptionRate * 100) / 100,
             fuel_consumed: Math.round(fuelConsumed * 100) / 100,
             fuel_amount: Math.round(fuelAmount * 100) / 100,
+            misc_expense: Math.round(miscExpense * 100) / 100,
+            spending_amount: Math.round(spendingAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100
         };
     }
@@ -74,24 +60,24 @@ class GeneratorOperationRepository extends BaseRepository {
      * Create a new generator operation
      */
     create(data) {
-        const resolved = this.resolveEquipmentId(data);
         const processedData = this.calculateTotals({
-            ...resolved,
-            day_name: this.getDayName(resolved.operation_date)
+            ...data,
+            day_name: this.getDayName(data.operation_date)
         });
-        return super.create(processedData);
+        const result = super.create(processedData);
+        return this.findByIdWithName(result.id);
     }
 
     /**
      * Update an existing generator operation
      */
     update(id, data) {
-        const resolved = this.resolveEquipmentId(data);
-        const processedData = this.calculateTotals(resolved);
-        if (resolved.operation_date) {
-            processedData.day_name = this.getDayName(resolved.operation_date);
+        const processedData = this.calculateTotals(data);
+        if (data.operation_date) {
+            processedData.day_name = this.getDayName(data.operation_date);
         }
-        return super.update(id, processedData);
+        super.update(id, processedData);
+        return this.findByIdWithName(id);
     }
 
     /**
