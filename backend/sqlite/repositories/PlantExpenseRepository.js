@@ -48,10 +48,15 @@ class PlantExpenseRepository extends BaseRepository {
      * Create a new plant expense entry
      */
     create(data) {
-        return super.create(this.withCategoryFields({
+        const processed = this.withCategoryFields({
             ...data,
             day_name: this.getDayName(data.expense_date)
-        }));
+        });
+        const amount = parseFloat(processed.amount) || 0;
+        const miscExpense = parseFloat(processed.misc_expense) || 0;
+        processed.spending_amount = amount;
+        processed.total_amount = amount + miscExpense;
+        return super.create(processed);
     }
 
     /**
@@ -62,6 +67,10 @@ class PlantExpenseRepository extends BaseRepository {
         if (data.expense_date) {
             updateData.day_name = this.getDayName(data.expense_date);
         }
+        const amount = parseFloat(updateData.amount) || 0;
+        const miscExpense = parseFloat(updateData.misc_expense) || 0;
+        updateData.spending_amount = amount;
+        updateData.total_amount = amount + miscExpense;
         return super.update(id, updateData);
     }
 

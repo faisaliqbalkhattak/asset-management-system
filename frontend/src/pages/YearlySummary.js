@@ -314,16 +314,16 @@ const YearlySummary = () => {
       {/* Yearly Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Total Expenses</div>
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(yearlyTotals.total)}</div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Total Revenue</div>
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(yearlyTotals.revenue)}</div>
+          <div className="text-sm text-gray-500">Spending</div>
+          <div className="text-2xl font-bold text-blue-700">{formatCurrency(yearlyTotals.spending)}</div>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="text-sm text-amber-700">Total Misc (Reference)</div>
-          <div className="text-2xl font-bold text-amber-700">{formatCurrency(yearlyTotals.total_misc)}</div>
+          <div className="text-sm text-amber-700">Misc</div>
+          <div className="text-2xl font-bold text-amber-700">{formatCurrency(yearlyTotals.misc)}</div>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+          <div className="text-sm text-emerald-700">Total Expenses</div>
+          <div className="text-2xl font-bold text-emerald-800">{formatCurrency(yearlyTotals.total)}</div>
         </div>
         <div className={`border rounded-lg p-4 ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
           <div className={`text-sm ${((yearlyTotals.revenue || 0) - (yearlyTotals.total || 0)) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>Net Profit</div>
@@ -414,8 +414,13 @@ const YearlySummary = () => {
                 ))}
                 {/* Non-equipment category headers */}
                 {visibleNonEquipmentCategories.map(cat => (
-                  <th key={cat.key} className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{cat.shortLabel}</th>
+                  <React.Fragment key={cat.key}>
+                    <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase">{cat.shortLabel}</th>
+                    <th className="px-3 py-3 text-right text-xs font-medium text-amber-600 uppercase bg-amber-50">{cat.shortLabel}.M</th>
+                  </React.Fragment>
                 ))}
+                <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-blue-600">Spending</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-amber-600">Misc</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-white uppercase bg-emerald-600">Total</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-green-700 uppercase bg-green-50">Revenue</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-emerald-700 uppercase bg-emerald-50">Profit</th>
@@ -445,8 +450,17 @@ const YearlySummary = () => {
                   ))}
                   {/* Non-equipment categories */}
                   {visibleNonEquipmentCategories.map(cat => (
-                    <td key={cat.key} className="px-3 py-2 text-sm text-right">{formatCurrency(row[cat.key])}</td>
+                    <React.Fragment key={cat.key}>
+                      <td className="px-3 py-2 text-sm text-right">{formatCurrency(row[cat.key])}</td>
+                      <td className="px-3 py-2 text-sm text-right text-amber-600 bg-amber-50">{formatCurrency(row[`${cat.key}_misc`])}</td>
+                    </React.Fragment>
                   ))}
+                  <td className="px-3 py-2 text-sm text-right font-bold text-white bg-blue-600">
+                    {formatCurrency(row.spending)}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right font-bold text-white bg-amber-600">
+                    {formatCurrency(row.misc)}
+                  </td>
                   <td className="px-3 py-2 text-sm text-right font-bold text-white bg-emerald-600">
                     {formatCurrency(row.total)}
                   </td>
@@ -482,8 +496,17 @@ const YearlySummary = () => {
                 ))}
                 {/* Non-equipment totals */}
                 {visibleNonEquipmentCategories.map(cat => (
-                  <td key={cat.key} className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals[cat.key])}</td>
+                  <React.Fragment key={cat.key}>
+                    <td className="px-3 py-3 text-sm text-right">{formatCurrency(yearlyTotals[cat.key])}</td>
+                    <td className="px-3 py-3 text-sm text-right text-amber-700 bg-amber-100">{formatCurrency(yearlyTotals[`${cat.key}_misc`])}</td>
+                  </React.Fragment>
                 ))}
+                <td className="px-3 py-3 text-sm text-right text-white bg-blue-700">
+                  {formatCurrency(yearlyTotals.spending)}
+                </td>
+                <td className="px-3 py-3 text-sm text-right text-white bg-amber-700">
+                  {formatCurrency(yearlyTotals.misc)}
+                </td>
                 <td className="px-3 py-3 text-sm text-right text-white bg-emerald-700">
                   {formatCurrency(yearlyTotals.total)}
                 </td>

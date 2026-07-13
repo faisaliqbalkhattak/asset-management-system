@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+import { calculateExcavatorTotals, calculateLoaderTotals, calculateDumperTotals } from '../utils/dailyEntryCalculations';
 
 // ============================================================
 // REUSABLE RECENT ENTRIES SECTION
@@ -118,6 +119,19 @@ const RecentEntriesSection = ({
               </React.Fragment>
             ))}
           </tbody>
+          <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+            <tr>
+              {primaryColumns.map((col) => {
+                const val = displayedData.reduce((sum, item) => sum + (Number(item[col.key]) || 0), 0);
+                return (
+                  <td key={col.key} className={"px-4 py-2 text-sm font-bold " + (col.cellClassName || "text-gray-800")}>
+                    {val != null ? val.toLocaleString() : "-"}
+                  </td>
+                );
+              })}
+              <td className="px-4 py-2 text-sm font-bold text-gray-500">{displayedData.length} entries</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       <div className="mt-2 text-xs text-gray-400 text-right">
@@ -199,22 +213,24 @@ const GeneratorForm = () => {
   );
 
   const [formData, setFormData] = useState({
-    equipment_name: '',
+    equipment_id: '',
     operation_date: new Date().toISOString().split('T')[0],
     timing_hours: '',
     fuel_consumption_rate: '',
     fuel_consumed: '',
     fuel_rate: '',
     rent_per_day: '19354.84', // Default: 600000/31 days
+    misc_expense: '',
+    misc_description: '',
     remarks: '',
   });
 
   // Update default equipment when generators load
   React.useEffect(() => {
-    if (generators.length > 0 && !formData.equipment_name) {
-      setFormData(prev => ({ ...prev, equipment_name: generators[0].equipment_name }));
+    if (generators.length > 0 && !formData.equipment_id) {
+      setFormData(prev => ({ ...prev, equipment_id: generators[0].id.toString() }));
     }
-  }, [generators, formData.equipment_name]);
+  }, [generators, formData.equipment_id]);
 
   const fuelConsumptionRate = parseFloat(formData.fuel_consumption_rate) || 0;
   const timingHours = parseFloat(formData.timing_hours) || 0;
@@ -224,7 +240,9 @@ const GeneratorForm = () => {
     : (parseFloat(formData.fuel_consumed) || 0);
   const fuelAmount = effectiveFuelConsumed * (parseFloat(formData.fuel_rate) || 0);
   const rentPerDay = parseFloat(formData.rent_per_day) || 0;
-  const total = fuelAmount + rentPerDay;
+  const miscAmount = parseFloat(formData.misc_expense) || 0;
+  const spending = fuelAmount + rentPerDay;
+  const total = spending + miscAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -235,13 +253,15 @@ const GeneratorForm = () => {
   const handleEdit = (op) => {
     setEditingId(op.id);
     setFormData({
-      equipment_name: op.equipment_name || generators[0]?.equipment_name || '',
+      equipment_id: op.equipment_id?.toString() || generators[0]?.id?.toString() || '',
       operation_date: op.operation_date,
       timing_hours: op.timing_hours?.toString() || '',
       fuel_consumption_rate: op.fuel_consumption_rate?.toString() || '',
       fuel_consumed: op.fuel_consumed?.toString() || '',
       fuel_rate: op.fuel_rate?.toString() || '',
       rent_per_day: op.rent_per_day?.toString() || '19354.84',
+      misc_expense: op.misc_expense?.toString() || '',
+      misc_description: op.misc_description || '',
       remarks: op.remarks || '',
     });
     setError('');
@@ -266,20 +286,22 @@ const GeneratorForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      equipment_name: generators[0]?.equipment_name || '',
+      equipment_id: generators[0]?.id?.toString() || '',
       operation_date: new Date().toISOString().split('T')[0],
       timing_hours: '',
       fuel_consumption_rate: formData.fuel_consumption_rate,
       fuel_consumed: '',
       fuel_rate: formData.fuel_rate,
       rent_per_day: formData.rent_per_day,
+      misc_expense: '',
+      misc_description: '',
       remarks: '',
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.equipment_name) {
+    if (!formData.equipment_id) {
       setError('Please select a generator. Add generators in Master Data first.');
       return;
     }
@@ -289,7 +311,7 @@ const GeneratorForm = () => {
 
     try {
       const payload = {
-        equipment_name: formData.equipment_name,
+        equipment_id: parseInt(formData.equipment_id, 10),
         operation_date: formData.operation_date,
         timing_hours: parseFloat(formData.timing_hours) || 0,
         fuel_consumption_rate: fuelConsumptionRate,
@@ -297,6 +319,9 @@ const GeneratorForm = () => {
         fuel_rate: parseFloat(formData.fuel_rate) || 0,
         fuel_amount: fuelAmount,
         rent_per_day: rentPerDay,
+        misc_expense: miscAmount,
+        misc_description: formData.misc_description || null,
+        spending_amount: spending,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -315,14 +340,16 @@ const GeneratorForm = () => {
       }
 
       setFormData({
-        equipment_name: formData.equipment_name,
+        equipment_id: formData.equipment_id,
         operation_date: new Date().toISOString().split('T')[0],
         timing_hours: '',
         fuel_consumption_rate: formData.fuel_consumption_rate,
-        fuel_consumed: '',
-        fuel_rate: formData.fuel_rate,
-        rent_per_day: formData.rent_per_day,
-        remarks: '',
+      fuel_consumed: '',
+      fuel_rate: formData.fuel_rate,
+      rent_per_day: formData.rent_per_day,
+      misc_expense: '',
+      misc_description: '',
+      remarks: '',
       });
     } catch (err) {
       setError(err.message || 'Failed to save');
@@ -348,18 +375,18 @@ const GeneratorForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <Label htmlFor="equipment_name">Select Generator *</Label>
+            <Label htmlFor="equipment_id">Select Generator *</Label>
             <Select
-              id="equipment_name"
-              name="equipment_name"
-              value={formData.equipment_name}
+              id="equipment_id"
+              name="equipment_id"
+              value={formData.equipment_id}
               onChange={handleChange}
               disabled={generators.length === 0}
             >
               {generators.length === 0 ? (
                 <option value="">No generators available</option>
               ) : (
-                generators.map(g => <option key={g.id} value={g.equipment_name}>{g.equipment_name}</option>)
+                generators.map(g => <option key={g.id} value={g.id}>{g.equipment_name}</option>)
               )}
             </Select>
           </div>
@@ -404,13 +431,23 @@ const GeneratorForm = () => {
           </div>
 
           <div>
+            <Label htmlFor="misc_expense">Misc Expense (PKR)</Label>
+            <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+
+          <div>
+            <Label htmlFor="misc_description">Misc Description</Label>
+            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="Oil change, repairs, etc." />
+          </div>
+
+          <div>
             <Label htmlFor="remarks">Remarks</Label>
             <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional notes" />
           </div>
         </div>
 
         {/* Summary */}
-        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-3 gap-4">
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-4 gap-4">
           <div>
             <Label className="text-gray-600">Fuel Amount</Label>
             <div className="text-lg font-bold">{fuelAmount.toLocaleString()}</div>
@@ -421,9 +458,21 @@ const GeneratorForm = () => {
             <div className="text-lg font-bold">{rentPerDay.toLocaleString()}</div>
           </div>
           <div>
-            <Label className="text-emerald-600">Total</Label>
-            <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <Label className="text-amber-600">Misc</Label>
+            <div className="text-lg font-bold text-amber-700">{miscAmount.toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{spending.toLocaleString()}</div>
             <span className="text-xs text-gray-500">Fuel + Rent</span>
+          </div>
+        </div>
+        <div className="bg-emerald-100 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-emerald-700">Total (Spending + Misc)</Label>
+              <div className="text-2xl font-bold text-emerald-800">{total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
@@ -445,6 +494,9 @@ const GeneratorForm = () => {
           { key: 'timing_hours', label: 'Hours' },
           { key: 'fuel_consumed', label: 'Fuel (L)' },
           { key: 'rent_per_day', label: 'Rent/Day' },
+          { key: 'fuel_amount', label: 'Fuel', cellClassName: 'text-amber-600' },
+          { key: 'misc_expense', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'spending_amount', label: 'Spending', cellClassName: 'font-medium text-blue-700' },
           { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
@@ -457,6 +509,9 @@ const GeneratorForm = () => {
           { key: 'fuel_rate', label: 'Fuel Rate' },
           { key: 'fuel_amount', label: 'Fuel Amount' },
           { key: 'rent_per_day', label: 'Rent/Day' },
+          { key: 'misc_expense', label: 'Misc' },
+          { key: 'misc_description', label: 'Misc Desc' },
+          { key: 'spending_amount', label: 'Spending' },
           { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
@@ -486,7 +541,7 @@ const ExcavatorForm = () => {
   );
 
   const [formData, setFormData] = useState({
-    equipment_name: '',
+    equipment_id: '',
     operation_date: new Date().toISOString().split('T')[0],
     hours_operated: '',
     rate_per_hour: '3500',
@@ -501,22 +556,29 @@ const ExcavatorForm = () => {
   });
 
   React.useEffect(() => {
-    if (excavators.length > 0 && !formData.equipment_name) {
-      setFormData(prev => ({ ...prev, equipment_name: excavators[0].equipment_name }));
+    if (excavators.length > 0 && !formData.equipment_id) {
+      setFormData(prev => ({ ...prev, equipment_id: excavators[0].id.toString() }));
     }
-  }, [excavators, formData.equipment_name]);
+  }, [excavators, formData.equipment_id]);
 
-  const rentAmount = (parseFloat(formData.hours_operated) || 0) * (parseFloat(formData.rate_per_hour) || 0);
-  const fuelConsumptionRate = parseFloat(formData.fuel_consumption_rate) || 0;
-  const hoursOperated = parseFloat(formData.hours_operated) || 0;
-  const effectiveFuelConsumed = fuelConsumptionRate > 0 && hoursOperated > 0
-    ? fuelConsumptionRate * hoursOperated
-    : (parseFloat(formData.fuel_consumed) || 0);
-  const fuelAmount = effectiveFuelConsumed * (parseFloat(formData.fuel_rate) || 0);
-  const miscAmount = parseFloat(formData.misc_expense) || 0;
-  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
-  const totalMisc = miscAmount + miscAmount2;
-  const total = rentAmount + fuelAmount;
+  const {
+    rentAmount,
+    effectiveFuelConsumed,
+    fuelAmount,
+    miscAmount,
+    miscAmount2,
+    totalMisc,
+    spending,
+    total,
+  } = calculateExcavatorTotals({
+    hoursOperated: formData.hours_operated,
+    ratePerHour: formData.rate_per_hour,
+    fuelConsumptionRate: formData.fuel_consumption_rate,
+    fuelConsumed: formData.fuel_consumed,
+    fuelRate: formData.fuel_rate,
+    miscExpense: formData.misc_expense,
+    miscExpense2: formData.misc_expense_2,
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -530,7 +592,7 @@ const ExcavatorForm = () => {
       : 0;
     setEditingId(op.id);
     setFormData({
-      equipment_name: op.equipment_name || excavators[0]?.name || '',
+      equipment_id: op.equipment_id?.toString() || excavators[0]?.id?.toString() || '',
       operation_date: op.operation_date,
       hours_operated: op.hours_operated?.toString() || '',
       rate_per_hour: op.rate_per_hour?.toString() || '3500',
@@ -565,7 +627,7 @@ const ExcavatorForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      equipment_name: excavators[0]?.name || '',
+      equipment_id: excavators[0]?.id?.toString() || '',
       operation_date: new Date().toISOString().split('T')[0],
       hours_operated: '',
       rate_per_hour: formData.rate_per_hour,
@@ -582,7 +644,7 @@ const ExcavatorForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.equipment_name) {
+    if (!formData.equipment_id) {
       setError('Please select an excavator. Add excavators in Master Data first.');
       return;
     }
@@ -592,7 +654,7 @@ const ExcavatorForm = () => {
 
     try {
       const payload = {
-        equipment_name: formData.equipment_name,
+        equipment_id: parseInt(formData.equipment_id, 10),
         operation_date: formData.operation_date,
         hours_operated: parseFloat(formData.hours_operated) || 0,
         rate_per_hour: parseFloat(formData.rate_per_hour) || 0,
@@ -605,6 +667,7 @@ const ExcavatorForm = () => {
         misc_description: formData.misc_description || null,
         misc_expense_2: miscAmount2,
         misc_description_2: formData.misc_description_2 || null,
+        spending_amount: spending,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -623,7 +686,7 @@ const ExcavatorForm = () => {
       }
 
       setFormData({
-        equipment_name: formData.equipment_name,
+        equipment_id: formData.equipment_id,
         operation_date: new Date().toISOString().split('T')[0],
         hours_operated: '',
         rate_per_hour: formData.rate_per_hour,
@@ -660,9 +723,9 @@ const ExcavatorForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <Label htmlFor="equipment_name">Select Excavator *</Label>
-            <Select id="equipment_name" name="equipment_name" value={formData.equipment_name} onChange={handleChange} disabled={excavators.length === 0}>
-              {excavators.length === 0 ? <option value="">No excavators available</option> : excavators.map(e => <option key={e.id} value={e.equipment_name}>{e.equipment_name}</option>)}
+            <Label htmlFor="equipment_id">Select Excavator *</Label>
+            <Select id="equipment_id" name="equipment_id" value={formData.equipment_id} onChange={handleChange} disabled={excavators.length === 0}>
+              {excavators.length === 0 ? <option value="">No excavators available</option> : excavators.map(e => <option key={e.id} value={e.id}>{e.equipment_name}</option>)}
             </Select>
           </div>
 
@@ -740,9 +803,17 @@ const ExcavatorForm = () => {
             <span className="text-xs text-gray-500">Not added to total</span>
           </div>
           <div>
-            <Label className="text-emerald-600">Total</Label>
-            <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{spending.toLocaleString()}</div>
             <span className="text-xs text-gray-500">Rent + Fuel only</span>
+          </div>
+        </div>
+        <div className="bg-emerald-100 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-emerald-700">Total (Spending + Misc)</Label>
+              <div className="text-2xl font-bold text-emerald-800">{total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
@@ -763,7 +834,10 @@ const ExcavatorForm = () => {
           { key: 'equipment_name', label: 'Equipment' },
           { key: 'hours_operated', label: 'Hours' },
           { key: 'rent_amount', label: 'Rent' },
-          { key: 'fuel_amount', label: 'Fuel' },
+          { key: 'fuel_amount', label: 'Fuel', cellClassName: 'text-amber-600' },
+          { key: 'misc_expense', label: 'Misc 1', cellClassName: 'text-amber-600' },
+          { key: 'misc_expense_2', label: 'Misc 2', cellClassName: 'text-amber-600' },
+          { key: 'spending_amount', label: 'Spending', cellClassName: 'font-medium text-blue-700' },
           { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
@@ -781,6 +855,7 @@ const ExcavatorForm = () => {
           { key: 'misc_description', label: 'Misc 1 Desc' },
           { key: 'misc_expense_2', label: 'Misc 2' },
           { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'spending_amount', label: 'Spending' },
           { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
@@ -811,7 +886,7 @@ const LoadersForm = () => {
   );
 
   const [formData, setFormData] = useState({
-    equipment_name: '',
+    equipment_id: '',
     operation_date: new Date().toISOString().split('T')[0],
     rent_per_day: '',
     fuel_consumed: '',
@@ -826,17 +901,28 @@ const LoadersForm = () => {
   });
 
   React.useEffect(() => {
-    if (loaders.length > 0 && !formData.equipment_name) {
-      setFormData(prev => ({ ...prev, equipment_name: loaders[0].equipment_name }));
+    if (loaders.length > 0 && !formData.equipment_id) {
+      setFormData(prev => ({ ...prev, equipment_id: loaders[0].id.toString() }));
     }
-  }, [loaders, formData.equipment_name]);
+  }, [loaders, formData.equipment_id]);
 
-  const fuelAmount = (parseFloat(formData.fuel_consumed) || 0) * (parseFloat(formData.fuel_rate) || 0);
-  const defunctCost = (parseFloat(formData.defunct_hours) || 0) * (parseFloat(formData.defunct_cost_per_hour) || 0);
-  const miscAmount = parseFloat(formData.misc_expense) || 0;
-  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
-  const totalMisc = miscAmount + miscAmount2;
-  const total = (parseFloat(formData.rent_per_day) || 0) + fuelAmount - defunctCost;
+  const {
+    fuelAmount,
+    defunctCost,
+    miscAmount,
+    miscAmount2,
+    totalMisc,
+    spending,
+    total,
+  } = calculateLoaderTotals({
+    rentPerDay: formData.rent_per_day,
+    fuelConsumed: formData.fuel_consumed,
+    fuelRate: formData.fuel_rate,
+    defunctHours: formData.defunct_hours,
+    defunctCostPerHour: formData.defunct_cost_per_hour,
+    miscExpense: formData.misc_expense,
+    miscExpense2: formData.misc_expense_2,
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -847,7 +933,7 @@ const LoadersForm = () => {
   const handleEdit = (op) => {
     setEditingId(op.id);
     setFormData({
-      equipment_name: op.equipment_name || loaders[0]?.equipment_name || '',
+      equipment_id: op.equipment_id?.toString() || loaders[0]?.id?.toString() || '',
       operation_date: op.operation_date,
       rent_per_day: op.rent_per_day?.toString() || '',
       fuel_consumed: op.fuel_consumed?.toString() || op.fuel_per_day?.toString() || '',
@@ -882,7 +968,7 @@ const LoadersForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      equipment_name: loaders[0]?.equipment_name || '',
+      equipment_id: loaders[0]?.id?.toString() || '',
       operation_date: new Date().toISOString().split('T')[0],
       rent_per_day: formData.rent_per_day,
       fuel_consumed: '',
@@ -899,7 +985,7 @@ const LoadersForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.equipment_name) {
+    if (!formData.equipment_id) {
       setError('Please select a loader. Add loaders in Master Data first.');
       return;
     }
@@ -909,7 +995,7 @@ const LoadersForm = () => {
 
     try {
       const payload = {
-        equipment_name: formData.equipment_name,
+        equipment_id: parseInt(formData.equipment_id, 10),
         operation_date: formData.operation_date,
         rent_per_day: parseFloat(formData.rent_per_day) || 0,
         fuel_consumed: parseFloat(formData.fuel_consumed) || 0,
@@ -923,6 +1009,7 @@ const LoadersForm = () => {
         misc_description: formData.misc_description || null,
         misc_expense_2: miscAmount2,
         misc_description_2: formData.misc_description_2 || null,
+        spending_amount: spending,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -941,7 +1028,7 @@ const LoadersForm = () => {
       }
 
       setFormData({
-        equipment_name: formData.equipment_name,
+        equipment_id: formData.equipment_id,
         operation_date: new Date().toISOString().split('T')[0],
         rent_per_day: formData.rent_per_day,
         fuel_consumed: '',
@@ -978,9 +1065,9 @@ const LoadersForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <Label htmlFor="equipment_name">Select Loader *</Label>
-            <Select id="equipment_name" name="equipment_name" value={formData.equipment_name} onChange={handleChange} disabled={loaders.length === 0}>
-              {loaders.length === 0 ? <option value="">No loaders available</option> : loaders.map(l => <option key={l.id} value={l.equipment_name}>{l.equipment_name}</option>)}
+            <Label htmlFor="equipment_id">Select Loader *</Label>
+            <Select id="equipment_id" name="equipment_id" value={formData.equipment_id} onChange={handleChange} disabled={loaders.length === 0}>
+              {loaders.length === 0 ? <option value="">No loaders available</option> : loaders.map(l => <option key={l.id} value={l.id}>{l.equipment_name}</option>)}
             </Select>
           </div>
 
@@ -1061,9 +1148,17 @@ const LoadersForm = () => {
             <span className="text-xs text-gray-500">Not added to total</span>
           </div>
           <div>
-            <Label className="text-emerald-600">Total</Label>
-            <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{spending.toLocaleString()}</div>
             <span className="text-xs text-gray-500">Rent + Fuel - Defunct</span>
+          </div>
+        </div>
+        <div className="bg-emerald-100 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-emerald-700">Total (Spending + Misc)</Label>
+              <div className="text-2xl font-bold text-emerald-800">{total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
@@ -1083,8 +1178,11 @@ const LoadersForm = () => {
           { key: 'operation_date', label: 'Date' },
           { key: 'equipment_name', label: 'Loader' },
           { key: 'rent_per_day', label: 'Rent' },
-          { key: 'fuel_amount', label: 'Fuel' },
+          { key: 'fuel_amount', label: 'Fuel', cellClassName: 'text-amber-600' },
           { key: 'defunct_cost', label: 'Defunct', headerClassName: 'text-red-500', cellClassName: 'text-red-700' },
+          { key: 'misc_expense', label: 'Misc 1', cellClassName: 'text-amber-600' },
+          { key: 'misc_expense_2', label: 'Misc 2', cellClassName: 'text-amber-600' },
+          { key: 'spending_amount', label: 'Spending', cellClassName: 'font-medium text-blue-700' },
           { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
@@ -1102,6 +1200,7 @@ const LoadersForm = () => {
           { key: 'misc_description', label: 'Misc 1 Desc' },
           { key: 'misc_expense_2', label: 'Misc 2' },
           { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'spending_amount', label: 'Spending' },
           { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
@@ -1132,7 +1231,7 @@ const DumpersForm = () => {
   );
 
   const [formData, setFormData] = useState({
-    dumper_name: '',
+    equipment_id: '',
     trip_date: new Date().toISOString().split('T')[0],
     gravel_trips: '',
     clay_trips: '',
@@ -1147,20 +1246,30 @@ const DumpersForm = () => {
   });
 
   React.useEffect(() => {
-    if (dumpers.length > 0 && !formData.dumper_name) {
-      setFormData(prev => ({ ...prev, dumper_name: dumpers[0].equipment_name }));
+    if (dumpers.length > 0 && !formData.equipment_id) {
+      setFormData(prev => ({ ...prev, equipment_id: dumpers[0].id.toString() }));
     }
-  }, [dumpers, formData.dumper_name]);
+  }, [dumpers, formData.equipment_id]);
 
-  const totalTrips = (parseInt(formData.gravel_trips) || 0) + (parseInt(formData.clay_trips) || 0);
-  const totalCft = totalTrips * (parseFloat(formData.cft_per_trip) || 0);
-  const tripAmount = totalCft * (parseFloat(formData.rate_per_cft) || 0);
-  const miscFuelQty = parseFloat(formData.misc_fuel_qty) || 0;
-  const miscFuelRate = parseFloat(formData.misc_fuel_rate) || 0;
-  const miscAmount = miscFuelQty * miscFuelRate;
-  const miscAmount2 = parseFloat(formData.misc_expense_2) || 0;
-  const totalMisc = miscAmount + miscAmount2;
-  const total = tripAmount;
+  const {
+    totalTrips,
+    totalCft,
+    tripAmount,
+    miscFuelQty,
+    miscFuelRate,
+    fuelAmount,
+    miscAmount2,
+    spending,
+    total,
+  } = calculateDumperTotals({
+    gravelTrips: formData.gravel_trips,
+    clayTrips: formData.clay_trips,
+    cftPerTrip: formData.cft_per_trip,
+    ratePerCft: formData.rate_per_cft,
+    miscFuelQty: formData.misc_fuel_qty,
+    miscFuelRate: formData.misc_fuel_rate,
+    miscExpense2: formData.misc_expense_2,
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1171,7 +1280,7 @@ const DumpersForm = () => {
   const handleEdit = (op) => {
     setEditingId(op.id);
     setFormData({
-      dumper_name: op.dumper_name || dumpers[0]?.equipment_name || '',
+      equipment_id: op.equipment_id?.toString() || dumpers[0]?.id?.toString() || '',
       trip_date: op.trip_date,
       gravel_trips: op.gravel_trips?.toString() || '',
       clay_trips: op.clay_trips?.toString() || '',
@@ -1206,7 +1315,7 @@ const DumpersForm = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setFormData({
-      dumper_name: dumpers[0]?.equipment_name || '',
+      equipment_id: dumpers[0]?.id?.toString() || '',
       trip_date: new Date().toISOString().split('T')[0],
       gravel_trips: '',
       clay_trips: '',
@@ -1223,7 +1332,7 @@ const DumpersForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.dumper_name) {
+    if (!formData.equipment_id) {
       setError('Please select a dumper. Add dumpers in Master Data first.');
       return;
     }
@@ -1233,7 +1342,7 @@ const DumpersForm = () => {
 
     try {
       const payload = {
-        dumper_name: formData.dumper_name,
+        equipment_id: parseInt(formData.equipment_id, 10),
         trip_date: formData.trip_date,
         gravel_trips: parseInt(formData.gravel_trips) || 0,
         clay_trips: parseInt(formData.clay_trips) || 0,
@@ -1243,10 +1352,11 @@ const DumpersForm = () => {
         trip_amount: tripAmount,
         misc_fuel_qty: miscFuelQty,
         misc_fuel_rate: miscFuelRate,
-        misc_expense: miscAmount,
+        fuel_amount: fuelAmount,
         misc_description: formData.misc_description || null,
         misc_expense_2: miscAmount2,
         misc_description_2: formData.misc_description_2 || null,
+        spending_amount: spending,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -1265,7 +1375,7 @@ const DumpersForm = () => {
       }
 
       setFormData({
-        dumper_name: formData.dumper_name,
+        equipment_id: formData.equipment_id,
         trip_date: new Date().toISOString().split('T')[0],
         gravel_trips: '',
         clay_trips: '',
@@ -1288,7 +1398,7 @@ const DumpersForm = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-2">Dumper Entry</h2>
-      <p className="text-sm text-gray-600 mb-4">Trip Amount = Trips × CFT × Rate | Total = Trip Amount (Misc tracked separately)</p>
+      <p className="text-sm text-gray-600 mb-4">Trip Amount = Trips × CFT × Rate | Fuel is a direct expense | Total = Spending + Misc</p>
 
       {dumpers.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
@@ -1302,9 +1412,9 @@ const DumpersForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <Label htmlFor="dumper_name">Select Dumper *</Label>
-            <Select id="dumper_name" name="dumper_name" value={formData.dumper_name} onChange={handleChange} disabled={dumpers.length === 0}>
-              {dumpers.length === 0 ? <option value="">No dumpers available</option> : dumpers.map(d => <option key={d.id} value={d.equipment_name}>{d.equipment_name}</option>)}
+            <Label htmlFor="equipment_id">Select Dumper *</Label>
+            <Select id="equipment_id" name="equipment_id" value={formData.equipment_id} onChange={handleChange} disabled={dumpers.length === 0}>
+              {dumpers.length === 0 ? <option value="">No dumpers available</option> : dumpers.map(d => <option key={d.id} value={d.id}>{d.equipment_name}</option>)}
             </Select>
           </div>
 
@@ -1380,14 +1490,30 @@ const DumpersForm = () => {
             <div className="text-lg font-bold">{tripAmount.toLocaleString()}</div>
           </div>
           <div>
-            <Label className="text-amber-600">Misc (separate)</Label>
-            <div className="text-lg font-bold text-amber-700">{totalMisc.toLocaleString()}</div>
-            <span className="text-xs text-gray-500">Not added to total</span>
+            <Label className="text-gray-600">Fuel</Label>
+            <div className="text-lg font-bold">{fuelAmount.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">{formData.misc_fuel_qty || 0}L × Rs.{formData.misc_fuel_rate || 0}/L</span>
           </div>
           <div>
-            <Label className="text-emerald-600">Total</Label>
-            <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
-            <span className="text-xs text-gray-500">Trip Amount only</span>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{spending.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Trip Amount + Fuel</span>
+          </div>
+        </div>
+        <div className="bg-amber-50 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-amber-700">Misc (added to total only)</Label>
+              <div className="text-xl font-bold text-amber-800">{miscAmount2.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-emerald-100 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-emerald-700">Total (Spending + Misc)</Label>
+              <div className="text-2xl font-bold text-emerald-800">{total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
@@ -1405,16 +1531,20 @@ const DumpersForm = () => {
         data={dumperOperations}
         primaryColumns={[
           { key: 'trip_date', label: 'Date' },
-          { key: 'dumper_name', label: 'Dumper' },
+          { key: 'equipment_name', label: 'Dumper' },
           { key: 'gravel_trips', label: 'Gravel' },
           { key: 'clay_trips', label: 'Clay' },
           { key: 'total_cft', label: 'CFT' },
-          { key: 'trip_amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+          { key: 'trip_amount', label: 'Amount' },
+          { key: 'fuel_amount', label: 'Fuel', cellClassName: 'text-amber-600' },
+          { key: 'misc_expense_2', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'spending_amount', label: 'Spending', cellClassName: 'font-medium text-blue-700' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
           { key: 'trip_date', label: 'Date' },
           { key: 'day_name', label: 'Day' },
-          { key: 'dumper_name', label: 'Dumper' },
+          { key: 'equipment_name', label: 'Dumper' },
           { key: 'gravel_trips', label: 'Gravel Trips' },
           { key: 'clay_trips', label: 'Clay Trips' },
           { key: 'cft_per_trip', label: 'CFT/Trip' },
@@ -1424,10 +1554,11 @@ const DumpersForm = () => {
           { key: 'trip_amount', label: 'Trip Amount' },
           { key: 'misc_fuel_qty', label: 'Fuel Qty' },
           { key: 'misc_fuel_rate', label: 'Fuel Rate' },
-          { key: 'misc_expense', label: 'Fuel Amount' },
+          { key: 'fuel_amount', label: 'Fuel Amount' },
           { key: 'misc_description', label: 'Fuel Remarks' },
           { key: 'misc_expense_2', label: 'Misc 2' },
           { key: 'misc_description_2', label: 'Misc 2 Desc' },
+          { key: 'spending_amount', label: 'Spending' },
           { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
@@ -1460,6 +1591,8 @@ const BlastingMaterialForm = () => {
     quantity: '',
     rate: '',
     transport_charges: '',
+    misc_expense: '',
+    misc_description: '',
     remarks: '',
   });
 
@@ -1470,7 +1603,10 @@ const BlastingMaterialForm = () => {
   }, [defaultItems, formData.category_id]);
 
   const itemAmount = (parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0);
-  const total = itemAmount + (parseFloat(formData.transport_charges) || 0);
+  const transportCharges = parseFloat(formData.transport_charges) || 0;
+  const miscAmount = parseFloat(formData.misc_expense) || 0;
+  const spending = itemAmount + transportCharges;
+  const total = spending + miscAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1486,6 +1622,8 @@ const BlastingMaterialForm = () => {
       quantity: item.quantity?.toString() || '',
       rate: item.rate?.toString() || '',
       transport_charges: item.transport_charges?.toString() || '',
+      misc_expense: item.misc_expense?.toString() || '',
+      misc_description: item.misc_description || '',
       remarks: item.remarks || '',
     });
     setError('');
@@ -1515,6 +1653,8 @@ const BlastingMaterialForm = () => {
       quantity: '',
       rate: '',
       transport_charges: '',
+      misc_expense: '',
+      misc_description: '',
       remarks: '',
     });
   };
@@ -1538,7 +1678,10 @@ const BlastingMaterialForm = () => {
         quantity: parseFloat(formData.quantity) || 0,
         rate: parseFloat(formData.rate) || 0,
         amount: itemAmount,
-        transport_charges: parseFloat(formData.transport_charges) || 0,
+        transport_charges: transportCharges,
+        misc_expense: miscAmount,
+        misc_description: formData.misc_description || null,
+        spending_amount: spending,
         total_amount: total,
         remarks: formData.remarks || null,
       };
@@ -1562,6 +1705,8 @@ const BlastingMaterialForm = () => {
         quantity: '',
         rate: '',
         transport_charges: '',
+        misc_expense: '',
+        misc_description: '',
         remarks: '',
       });
     } catch (err) {
@@ -1615,7 +1760,7 @@ const BlastingMaterialForm = () => {
         </div>
 
         {/* Summary */}
-        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-3 gap-4">
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-4 gap-4">
           <div>
             <Label className="text-gray-600">Item Amount</Label>
             <div className="text-lg font-bold">{itemAmount.toLocaleString()}</div>
@@ -1623,11 +1768,24 @@ const BlastingMaterialForm = () => {
           </div>
           <div>
             <Label className="text-gray-600">Transport</Label>
-            <div className="text-lg font-bold">{(parseFloat(formData.transport_charges) || 0).toLocaleString()}</div>
+            <div className="text-lg font-bold">{transportCharges.toLocaleString()}</div>
           </div>
           <div>
-            <Label className="text-emerald-600">Total</Label>
-            <div className="text-2xl font-bold text-emerald-700">{total.toLocaleString()}</div>
+            <Label className="text-amber-600">Misc</Label>
+            <div className="text-lg font-bold text-amber-700">{miscAmount.toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{spending.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Item + Transport</span>
+          </div>
+        </div>
+        <div className="bg-emerald-100 p-3 rounded-lg mt-2">
+          <div className="flex justify-between items-center">
+            <div>
+              <Label className="text-emerald-700">Total (Spending + Misc)</Label>
+              <div className="text-2xl font-bold text-emerald-800">{total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
@@ -1648,6 +1806,10 @@ const BlastingMaterialForm = () => {
           { key: 'description', label: 'Item' },
           { key: 'quantity', label: 'Qty' },
           { key: 'rate', label: 'Rate' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'transport_charges', label: 'Transport' },
+          { key: 'misc_expense', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'spending_amount', label: 'Spending', cellClassName: 'font-medium text-blue-700' },
           { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
@@ -1658,6 +1820,9 @@ const BlastingMaterialForm = () => {
           { key: 'rate', label: 'Rate' },
           { key: 'amount', label: 'Item Amount' },
           { key: 'transport_charges', label: 'Transport' },
+          { key: 'misc_expense', label: 'Misc' },
+          { key: 'misc_description', label: 'Misc Desc' },
+          { key: 'spending_amount', label: 'Spending' },
           { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
@@ -1684,6 +1849,8 @@ const PlantMessForm = () => {
     expense_date: new Date().toISOString().split('T')[0],
     description: '',
     amount: '',
+    misc_expense: '',
+    misc_description: '',
     remarks: '',
   });
 
@@ -1699,6 +1866,8 @@ const PlantMessForm = () => {
       expense_date: exp.expense_date,
       description: exp.description || '',
       amount: exp.amount?.toString() || '',
+      misc_expense: exp.misc_expense?.toString() || '',
+      misc_description: exp.misc_description || '',
       remarks: exp.remarks || '',
     });
     setError('');
@@ -1722,7 +1891,7 @@ const PlantMessForm = () => {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormData({ expense_date: new Date().toISOString().split('T')[0], description: '', amount: '', remarks: '' });
+    setFormData({ expense_date: new Date().toISOString().split('T')[0], description: '', amount: '', misc_expense: '', misc_description: '', remarks: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -1732,10 +1901,16 @@ const PlantMessForm = () => {
     setIsSubmitting(true);
 
     try {
+      const amount = parseFloat(formData.amount) || 0;
+      const miscAmount = parseFloat(formData.misc_expense) || 0;
       const payload = {
         expense_date: formData.expense_date,
         description: formData.description,
-        amount: parseFloat(formData.amount) || 0,
+        amount: amount,
+        misc_expense: miscAmount,
+        misc_description: formData.misc_description || null,
+        spending_amount: amount,
+        total_amount: amount + miscAmount,
         remarks: formData.remarks || null,
       };
 
@@ -1752,7 +1927,7 @@ const PlantMessForm = () => {
         setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
-      setFormData({ expense_date: new Date().toISOString().split('T')[0], description: '', amount: '', remarks: '' });
+      setFormData({ expense_date: new Date().toISOString().split('T')[0], description: '', amount: '', misc_expense: '', misc_description: '', remarks: '' });
     } catch (err) {
       setError(err.message || 'Failed to save');
     } finally {
@@ -1782,8 +1957,33 @@ const PlantMessForm = () => {
             <Input type="number" id="amount" name="amount" value={formData.amount} onChange={handleChange} placeholder="0" step="0.01" required />
           </div>
           <div>
+            <Label htmlFor="misc_expense">Misc Amount (PKR)</Label>
+            <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+          <div>
+            <Label htmlFor="misc_description">Misc Description</Label>
+            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="What is misc for?" />
+          </div>
+          <div>
             <Label htmlFor="remarks">Remarks</Label>
             <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional" />
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-3 gap-4">
+          <div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{(parseFloat(formData.amount) || 0).toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-amber-600">Misc</Label>
+            <div className="text-lg font-bold text-amber-700">{(parseFloat(formData.misc_expense) || 0).toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-emerald-600">Total</Label>
+            <div className="text-2xl font-bold text-emerald-700">{((parseFloat(formData.amount) || 0) + (parseFloat(formData.misc_expense) || 0)).toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Spending + Misc</span>
           </div>
         </div>
 
@@ -1802,13 +2002,19 @@ const PlantMessForm = () => {
         primaryColumns={[
           { key: 'expense_date', label: 'Date' },
           { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+          { key: 'amount', label: 'Spending' },
+          { key: 'misc_expense', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
           { key: 'expense_date', label: 'Date' },
           { key: 'day_name', label: 'Day' },
           { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount' },
+          { key: 'amount', label: 'Spending' },
+          { key: 'misc_expense', label: 'Misc' },
+          { key: 'misc_description', label: 'Misc Desc' },
+          { key: 'spending_amount', label: 'Spending' },
+          { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
         editingId={editingId}
@@ -1839,6 +2045,8 @@ const PlantExpenseForm = () => {
     category_id: categories[0]?.value || '',
     description: '',
     amount: '',
+    misc_expense: '',
+    misc_description: '',
     remarks: '',
   });
 
@@ -1861,6 +2069,8 @@ const PlantExpenseForm = () => {
       category_id: String(exp.category_id || categories.find(opt => opt.label === exp.category)?.value || categories[0]?.value || ''),
       description: exp.description || '',
       amount: exp.amount?.toString() || '',
+      misc_expense: exp.misc_expense?.toString() || '',
+      misc_description: exp.misc_description || '',
       remarks: exp.remarks || '',
     });
     setError('');
@@ -1884,7 +2094,7 @@ const PlantExpenseForm = () => {
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: categories[0]?.value || '', description: '', amount: '', remarks: '' });
+    setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: categories[0]?.value || '', description: '', amount: '', misc_expense: '', misc_description: '', remarks: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -1895,12 +2105,18 @@ const PlantExpenseForm = () => {
 
     try {
       const selectedCategory = categories.find(item => item.value === formData.category_id);
+      const amount = parseFloat(formData.amount) || 0;
+      const miscAmount = parseFloat(formData.misc_expense) || 0;
       const payload = {
         expense_date: formData.expense_date,
         category_id: formData.category_id,
         category: selectedCategory?.label || '',
         description: formData.description,
-        amount: parseFloat(formData.amount) || 0,
+        amount: amount,
+        misc_expense: miscAmount,
+        misc_description: formData.misc_description || null,
+        spending_amount: amount,
+        total_amount: amount + miscAmount,
         remarks: formData.remarks || null,
       };
 
@@ -1917,7 +2133,7 @@ const PlantExpenseForm = () => {
         setJustSaved(true); setTimeout(() => setJustSaved(false), 1500);
       }
 
-      setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: formData.category_id, description: '', amount: '', remarks: '' });
+      setFormData({ expense_date: new Date().toISOString().split('T')[0], category_id: formData.category_id, description: '', amount: '', misc_expense: '', misc_description: '', remarks: '' });
     } catch (err) {
       setError(err.message || 'Failed to save');
     } finally {
@@ -1952,11 +2168,35 @@ const PlantExpenseForm = () => {
             <Label htmlFor="amount">Amount (PKR) *</Label>
             <Input type="number" id="amount" name="amount" value={formData.amount} onChange={handleChange} placeholder="0" step="0.01" required />
           </div>
+          <div>
+            <Label htmlFor="misc_expense">Misc Amount (PKR)</Label>
+            <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+          <div>
+            <Label htmlFor="misc_description">Misc Description</Label>
+            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="What is misc for?" />
+          </div>
+          <div>
+            <Label htmlFor="remarks">Remarks</Label>
+            <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional" className="max-w-md" />
+          </div>
         </div>
 
-        <div>
-          <Label htmlFor="remarks">Remarks</Label>
-          <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional" className="max-w-md" />
+        {/* Summary */}
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-3 gap-4">
+          <div>
+            <Label className="text-blue-600">Spending</Label>
+            <div className="text-lg font-bold text-blue-700">{(parseFloat(formData.amount) || 0).toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-amber-600">Misc</Label>
+            <div className="text-lg font-bold text-amber-700">{(parseFloat(formData.misc_expense) || 0).toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-emerald-600">Total</Label>
+            <div className="text-2xl font-bold text-emerald-700">{((parseFloat(formData.amount) || 0) + (parseFloat(formData.misc_expense) || 0)).toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Spending + Misc</span>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2">
@@ -1975,14 +2215,20 @@ const PlantExpenseForm = () => {
           { key: 'expense_date', label: 'Date' },
           { key: 'category', label: 'Category' },
           { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount', cellClassName: 'font-medium text-emerald-700' },
+          { key: 'amount', label: 'Spending' },
+          { key: 'misc_expense', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
           { key: 'expense_date', label: 'Date' },
           { key: 'day_name', label: 'Day' },
           { key: 'category', label: 'Category' },
           { key: 'description', label: 'Description' },
-          { key: 'amount', label: 'Amount' },
+          { key: 'amount', label: 'Spending' },
+          { key: 'misc_expense', label: 'Misc' },
+          { key: 'misc_description', label: 'Misc Desc' },
+          { key: 'spending_amount', label: 'Spending' },
+          { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
         editingId={editingId}
@@ -2013,6 +2259,8 @@ const SalaryForm = () => {
     base_salary: '',
     overtime: '',
     deductions: '',
+    misc_expense: '',
+    misc_description: '',
     remarks: '',
   });
 
@@ -2039,6 +2287,8 @@ const SalaryForm = () => {
   };
 
   const netSalary = (parseFloat(formData.base_salary) || 0) + (parseFloat(formData.overtime) || 0) - (parseFloat(formData.deductions) || 0);
+  const miscAmount = parseFloat(formData.misc_expense) || 0;
+  const totalSalary = netSalary + miscAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -2054,6 +2304,8 @@ const SalaryForm = () => {
       base_salary: sal.base_salary?.toString() || '',
       overtime: sal.overtime?.toString() || '',
       deductions: sal.deductions?.toString() || '',
+      misc_expense: sal.misc_expense?.toString() || '',
+      misc_description: sal.misc_description || '',
       remarks: sal.remarks || '',
     });
     setError('');
@@ -2084,6 +2336,8 @@ const SalaryForm = () => {
       base_salary: emp?.base_salary?.toString() || '',
       overtime: '',
       deductions: '',
+      misc_expense: '',
+      misc_description: '',
       remarks: '',
     });
   };
@@ -2106,6 +2360,10 @@ const SalaryForm = () => {
         overtime: parseFloat(formData.overtime) || 0,
         deductions: parseFloat(formData.deductions) || 0,
         net_salary: netSalary,
+        misc_expense: miscAmount,
+        misc_description: formData.misc_description || null,
+        spending_amount: netSalary,
+        total_amount: totalSalary,
         remarks: formData.remarks || null,
       };
 
@@ -2129,6 +2387,8 @@ const SalaryForm = () => {
         base_salary: emp?.base_salary?.toString() || '',
         overtime: '',
         deductions: '',
+        misc_expense: '',
+        misc_description: '',
         remarks: '',
       });
     } catch (err) {
@@ -2183,12 +2443,33 @@ const SalaryForm = () => {
             <Input type="number" id="deductions" name="deductions" value={formData.deductions} onChange={handleChange} placeholder="0" step="0.01" />
           </div>
           <div>
-            <Label className="text-emerald-600">Net Salary</Label>
-            <div className="text-2xl font-bold text-emerald-700 mt-1">{netSalary.toLocaleString()}</div>
+            <Label htmlFor="misc_expense">Misc Expense (PKR)</Label>
+            <Input type="number" id="misc_expense" name="misc_expense" value={formData.misc_expense} onChange={handleChange} placeholder="0" step="0.01" />
+          </div>
+          <div>
+            <Label htmlFor="misc_description">Misc Description</Label>
+            <Input type="text" id="misc_description" name="misc_description" value={formData.misc_description} onChange={handleChange} placeholder="What is misc for?" />
           </div>
           <div className="md:col-span-2">
             <Label htmlFor="remarks">Remarks</Label>
             <Input type="text" id="remarks" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="Optional" />
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="bg-emerald-50 p-4 rounded-lg grid grid-cols-3 gap-4">
+          <div>
+            <Label className="text-gray-600">Net Salary</Label>
+            <div className="text-lg font-bold">{netSalary.toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-amber-600">Misc</Label>
+            <div className="text-lg font-bold text-amber-700">{miscAmount.toLocaleString()}</div>
+          </div>
+          <div>
+            <Label className="text-emerald-600">Total</Label>
+            <div className="text-2xl font-bold text-emerald-700">{totalSalary.toLocaleString()}</div>
+            <span className="text-xs text-gray-500">Net Salary + Misc</span>
           </div>
         </div>
 
@@ -2210,7 +2491,9 @@ const SalaryForm = () => {
           { key: 'base_salary', label: 'Base' },
           { key: 'overtime', label: 'Overtime' },
           { key: 'deductions', label: 'Deductions' },
-          { key: 'net_salary', label: 'Net', cellClassName: 'font-medium text-emerald-700' },
+          { key: 'net_salary', label: 'Spending' },
+          { key: 'misc_expense', label: 'Misc', cellClassName: 'text-amber-600' },
+          { key: 'total_amount', label: 'Total', cellClassName: 'font-medium text-emerald-700' },
         ]}
         allColumns={[
           { key: 'salary_month', label: 'Month' },
@@ -2219,6 +2502,10 @@ const SalaryForm = () => {
           { key: 'overtime', label: 'Overtime' },
           { key: 'deductions', label: 'Deductions' },
           { key: 'net_salary', label: 'Net Salary' },
+          { key: 'misc_expense', label: 'Misc' },
+          { key: 'misc_description', label: 'Misc Desc' },
+          { key: 'spending_amount', label: 'Spending' },
+          { key: 'total_amount', label: 'Total' },
           { key: 'remarks', label: 'Remarks' },
         ]}
         editingId={editingId}

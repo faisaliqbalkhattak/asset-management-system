@@ -25,9 +25,13 @@ class PlantMessExpenseRepository extends BaseRepository {
     * Create a new plant mess expense entry
      */
     create(data) {
+        const amount = parseFloat(data.amount) || 0;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
         return super.create({
             ...data,
-            day_name: this.getDayName(data.expense_date)
+            day_name: this.getDayName(data.expense_date),
+            spending_amount: amount,
+            total_amount: amount + miscExpense
         });
     }
 
@@ -39,6 +43,10 @@ class PlantMessExpenseRepository extends BaseRepository {
         if (data.expense_date) {
             updateData.day_name = this.getDayName(data.expense_date);
         }
+        const amount = parseFloat(updateData.amount) || 0;
+        const miscExpense = parseFloat(updateData.misc_expense) || 0;
+        updateData.spending_amount = amount;
+        updateData.total_amount = amount + miscExpense;
         return super.update(id, updateData);
     }
 

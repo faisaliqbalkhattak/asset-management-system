@@ -23,24 +23,6 @@ class ExcavatorOperationRepository extends BaseRepository {
     }
 
     /**
-     * Resolve equipment_name to equipment_id
-     */
-    resolveEquipmentId(data) {
-        const cleaned = { ...data };
-        if (data.equipment_name) {
-            const equip = get(
-                `SELECT id FROM equipment WHERE equipment_name = ? AND equipment_type = 'EXCAVATOR'`,
-                [data.equipment_name]
-            );
-            if (equip) {
-                cleaned.equipment_id = equip.id;
-            }
-            delete cleaned.equipment_name;
-        }
-        return cleaned;
-    }
-
-    /**
      * Calculate totals before save
      * rent_amount = hours_operated * rate_per_hour
      * fuel_amount = fuel_consumed * fuel_rate
@@ -57,13 +39,19 @@ class ExcavatorOperationRepository extends BaseRepository {
 
         const rentAmount = hoursOperated * ratePerHour;
         const fuelAmount = fuelConsumed * fuelRate;
-        const totalAmount = rentAmount + fuelAmount;
+        const miscExpense = parseFloat(data.misc_expense) || 0;
+        const miscExpense2 = parseFloat(data.misc_expense_2) || 0;
+        const spendingAmount = rentAmount + fuelAmount;
+        const totalAmount = spendingAmount + miscExpense + miscExpense2;
 
         return {
             ...data,
             fuel_consumed: Math.round(fuelConsumed * 100) / 100,
             rent_amount: Math.round(rentAmount * 100) / 100,
             fuel_amount: Math.round(fuelAmount * 100) / 100,
+            misc_expense: Math.round(miscExpense * 100) / 100,
+            misc_expense_2: Math.round(miscExpense2 * 100) / 100,
+            spending_amount: Math.round(spendingAmount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100
         };
     }
@@ -72,24 +60,24 @@ class ExcavatorOperationRepository extends BaseRepository {
      * Create a new excavator operation
      */
     create(data) {
-        const resolved = this.resolveEquipmentId(data);
         const processedData = this.calculateTotals({
-            ...resolved,
-            day_name: this.getDayName(resolved.operation_date)
+            ...data,
+            day_name: this.getDayName(data.operation_date)
         });
-        return super.create(processedData);
+        const result = super.create(processedData);
+        return this.findByIdWithName(result.id);
     }
 
     /**
      * Update an existing excavator operation
      */
     update(id, data) {
-        const resolved = this.resolveEquipmentId(data);
-        const processedData = this.calculateTotals(resolved);
-        if (resolved.operation_date) {
-            processedData.day_name = this.getDayName(resolved.operation_date);
+        const processedData = this.calculateTotals(data);
+        if (data.operation_date) {
+            processedData.day_name = this.getDayName(data.operation_date);
         }
-        return super.update(id, processedData);
+        super.update(id, processedData);
+        return this.findByIdWithName(id);
     }
 
     /**

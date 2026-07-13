@@ -43,7 +43,10 @@ const COLUMN_CONFIGS = {
         fuel_rate: parseFloat(data.fuel_rate) || 0,
         fuel_amount: fuelAmount,
         rent_per_day: rentPerDay,
-        total_amount: fuelAmount + rentPerDay,
+        misc_expense: parseFloat(data.misc_expense) || 0,
+        misc_description: data.misc_description || null,
+        spending_amount: fuelAmount + rentPerDay,
+        total_amount: fuelAmount + rentPerDay + (parseFloat(data.misc_expense) || 0),
         remarks: data.remarks || null,
       };
     },
@@ -92,7 +95,8 @@ const COLUMN_CONFIGS = {
         misc_description: data.misc_description || null,
         misc_expense_2: parseFloat(data.misc_expense_2) || 0,
         misc_description_2: data.misc_description_2 || null,
-        total_amount: rentAmount + fuelAmount,
+        spending_amount: rentAmount + fuelAmount,
+        total_amount: rentAmount + fuelAmount + (parseFloat(data.misc_expense) || 0) + (parseFloat(data.misc_expense_2) || 0),
         remarks: data.remarks || null,
       };
     },
@@ -138,7 +142,8 @@ const COLUMN_CONFIGS = {
         misc_description: data.misc_description || null,
         misc_expense_2: parseFloat(data.misc_expense_2) || 0,
         misc_description_2: data.misc_description_2 || null,
-        total_amount: (parseFloat(data.rent_per_day) || 0) + fuelAmount - defunctCost,
+        spending_amount: (parseFloat(data.rent_per_day) || 0) + fuelAmount - defunctCost,
+        total_amount: (parseFloat(data.rent_per_day) || 0) + fuelAmount - defunctCost + (parseFloat(data.misc_expense) || 0) + (parseFloat(data.misc_expense_2) || 0),
         remarks: data.remarks || null,
       };
     },
@@ -185,11 +190,12 @@ const COLUMN_CONFIGS = {
         trip_amount: tripAmount,
         misc_fuel_qty: miscFuelQty,
         misc_fuel_rate: miscFuelRate,
-        misc_expense: miscExpense,
+        fuel_amount: miscExpense,
         misc_description: data.misc_description || null,
         misc_expense_2: parseFloat(data.misc_expense_2) || 0,
         misc_description_2: data.misc_description_2 || null,
-        total_amount: tripAmount,
+        spending_amount: tripAmount + miscExpense,
+        total_amount: tripAmount + miscExpense + (parseFloat(data.misc_expense_2) || 0),
         remarks: data.remarks || null,
       };
     },
@@ -197,31 +203,36 @@ const COLUMN_CONFIGS = {
   'Dumper Misc': {
     dateField: 'expense_date',
     primaryColumns: ['expense_date', 'dumper_name', 'description', 'amount'],
-    allColumns: ['expense_date', 'day_name', 'dumper_name', 'description', 'amount', 'remarks'],
+    allColumns: ['expense_date', 'day_name', 'dumper_name', 'description', 'amount', 'spending_amount', 'total_amount', 'remarks'],
     labels: {
       expense_date: 'Date', day_name: 'Day', dumper_name: 'Dumper',
-      description: 'Description', amount: 'Amount', remarks: 'Remarks',
+      description: 'Description', amount: 'Amount', spending_amount: 'Spending', total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
       description: { type: 'text' },
       amount: { type: 'number', step: '0.01' },
       remarks: { type: 'text' },
     },
-    computePayload: (data) => ({
-      dumper_name: data.dumper_name,
-      expense_date: data.expense_date,
-      description: data.description || '',
-      amount: parseFloat(data.amount) || 0,
-      remarks: data.remarks || null,
-    }),
+    computePayload: (data) => {
+      const amt = parseFloat(data.amount) || 0;
+      return {
+        dumper_name: data.dumper_name,
+        expense_date: data.expense_date,
+        description: data.description || '',
+        amount: amt,
+        spending_amount: amt,
+        total_amount: amt,
+        remarks: data.remarks || null,
+      };
+    },
   },
   'Blasting Material': {
     dateField: 'purchase_date',
     primaryColumns: ['purchase_date', 'description', 'quantity', 'rate', 'total_amount'],
-    allColumns: ['purchase_date', 'day_name', 'description', 'quantity', 'rate', 'amount', 'transport_charges', 'total_amount', 'remarks'],
+    allColumns: ['purchase_date', 'day_name', 'description', 'quantity', 'rate', 'amount', 'transport_charges', 'misc_expense', 'misc_description', 'spending_amount', 'total_amount', 'remarks'],
     labels: {
       purchase_date: 'Date', day_name: 'Day', description: 'Item', quantity: 'Qty',
-      rate: 'Rate', amount: 'Amount', transport_charges: 'Transport',
+      rate: 'Rate', amount: 'Amount', transport_charges: 'Transport', misc_expense: 'Misc', misc_description: 'Misc Desc', spending_amount: 'Spending',
       total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
@@ -233,14 +244,20 @@ const COLUMN_CONFIGS = {
     },
     computePayload: (data) => {
       const itemAmount = (parseFloat(data.quantity) || 0) * (parseFloat(data.rate) || 0);
+      const transport = parseFloat(data.transport_charges) || 0;
+      const miscExp = parseFloat(data.misc_expense) || 0;
+      const spending = itemAmount + transport;
       return {
         purchase_date: data.purchase_date,
         category_id: data.category_id || null,
         quantity: parseFloat(data.quantity) || 0,
         rate: parseFloat(data.rate) || 0,
         amount: itemAmount,
-        transport_charges: parseFloat(data.transport_charges) || 0,
-        total_amount: itemAmount + (parseFloat(data.transport_charges) || 0),
+        transport_charges: transport,
+        misc_expense: miscExp,
+        misc_description: data.misc_description || null,
+        spending_amount: spending,
+        total_amount: spending + miscExp,
         remarks: data.remarks || null,
       };
     },
@@ -248,30 +265,38 @@ const COLUMN_CONFIGS = {
   'Plant Mess': {
     dateField: 'expense_date',
     primaryColumns: ['expense_date', 'description', 'amount'],
-    allColumns: ['expense_date', 'day_name', 'description', 'amount', 'remarks'],
+    allColumns: ['expense_date', 'day_name', 'description', 'amount', 'misc_expense', 'misc_description', 'spending_amount', 'total_amount', 'remarks'],
     labels: {
       expense_date: 'Date', day_name: 'Day', description: 'Description',
-      amount: 'Amount', remarks: 'Remarks',
+      amount: 'Amount', misc_expense: 'Misc', misc_description: 'Misc Desc', spending_amount: 'Spending', total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
       description: { type: 'text' },
       amount: { type: 'number', step: '0.01' },
       remarks: { type: 'text' },
     },
-    computePayload: (data) => ({
-      expense_date: data.expense_date,
-      description: data.description || '',
-      amount: parseFloat(data.amount) || 0,
-      remarks: data.remarks || null,
-    }),
+    computePayload: (data) => {
+      const amt = parseFloat(data.amount) || 0;
+      const miscExp = parseFloat(data.misc_expense) || 0;
+      return {
+        expense_date: data.expense_date,
+        description: data.description || '',
+        amount: amt,
+        misc_expense: miscExp,
+        misc_description: data.misc_description || null,
+        spending_amount: amt,
+        total_amount: amt + miscExp,
+        remarks: data.remarks || null,
+      };
+    },
   },
   'Plant Expense': {
     dateField: 'expense_date',
     primaryColumns: ['expense_date', 'category', 'description', 'amount'],
-    allColumns: ['expense_date', 'day_name', 'category', 'description', 'amount', 'remarks'],
+    allColumns: ['expense_date', 'day_name', 'category', 'description', 'amount', 'misc_expense', 'misc_description', 'spending_amount', 'total_amount', 'remarks'],
     labels: {
       expense_date: 'Date', day_name: 'Day', category: 'Category',
-      description: 'Description', amount: 'Amount', remarks: 'Remarks',
+      description: 'Description', amount: 'Amount', misc_expense: 'Misc', misc_description: 'Misc Desc', spending_amount: 'Spending', total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
       category_id: { type: 'select', optionsKey: 'plantExpenseCategories' },
@@ -279,21 +304,29 @@ const COLUMN_CONFIGS = {
       amount: { type: 'number', step: '0.01' },
       remarks: { type: 'text' },
     },
-    computePayload: (data) => ({
-      expense_date: data.expense_date,
-      category_id: data.category_id || null,
-      description: data.description || '',
-      amount: parseFloat(data.amount) || 0,
-      remarks: data.remarks || null,
-    }),
+    computePayload: (data) => {
+      const amt = parseFloat(data.amount) || 0;
+      const miscExp = parseFloat(data.misc_expense) || 0;
+      return {
+        expense_date: data.expense_date,
+        category_id: data.category_id || null,
+        description: data.description || '',
+        amount: amt,
+        misc_expense: miscExp,
+        misc_description: data.misc_description || null,
+        spending_amount: amt,
+        total_amount: amt + miscExp,
+        remarks: data.remarks || null,
+      };
+    },
   },
   Salary: {
     dateField: 'salary_month',
     primaryColumns: ['salary_month', 'employee_name', 'base_salary', 'net_salary'],
-    allColumns: ['salary_month', 'employee_name', 'base_salary', 'overtime', 'deductions', 'net_salary', 'remarks'],
+    allColumns: ['salary_month', 'employee_name', 'base_salary', 'overtime', 'deductions', 'net_salary', 'misc_expense', 'misc_description', 'spending_amount', 'total_amount', 'remarks'],
     labels: {
       salary_month: 'Month', employee_name: 'Employee', base_salary: 'Base Salary',
-      overtime: 'Overtime', deductions: 'Deductions', net_salary: 'Net Salary', remarks: 'Remarks',
+      overtime: 'Overtime', deductions: 'Deductions', net_salary: 'Net Salary', misc_expense: 'Misc', misc_description: 'Misc Desc', spending_amount: 'Spending', total_amount: 'Total', remarks: 'Remarks',
     },
     editableFields: {
       base_salary: { type: 'number', step: '0.01' },
@@ -301,15 +334,26 @@ const COLUMN_CONFIGS = {
       deductions: { type: 'number', step: '0.01' },
       remarks: { type: 'text' },
     },
-    computePayload: (data) => ({
-      employee_id: data.employee_id,
-      salary_month: data.salary_month,
-      base_salary: parseFloat(data.base_salary) || 0,
-      overtime: parseFloat(data.overtime) || 0,
-      deductions: parseFloat(data.deductions) || 0,
-      net_salary: (parseFloat(data.base_salary) || 0) + (parseFloat(data.overtime) || 0) - (parseFloat(data.deductions) || 0),
-      remarks: data.remarks || null,
-    }),
+    computePayload: (data) => {
+      const base = parseFloat(data.base_salary) || 0;
+      const ot = parseFloat(data.overtime) || 0;
+      const ded = parseFloat(data.deductions) || 0;
+      const net = base + ot - ded;
+      const miscExp = parseFloat(data.misc_expense) || 0;
+      return {
+        employee_id: data.employee_id,
+        salary_month: data.salary_month,
+        base_salary: base,
+        overtime: ot,
+        deductions: ded,
+        net_salary: net,
+        misc_expense: miscExp,
+        misc_description: data.misc_description || null,
+        spending_amount: net,
+        total_amount: net + miscExp,
+        remarks: data.remarks || null,
+      };
+    },
   },
   Production: {
     dateField: 'production_date',
@@ -626,12 +670,12 @@ const Transactions = () => {
 
   // Summary totals for filtered transactions
   const summaryTotals = useMemo(() => {
-    const totals = { total: 0, misc: 0 };
+    const totals = { amount: 0, misc: 0, total: 0 };
     filteredTransactions.forEach(t => {
-      totals.total += (t.amount || 0);
-      totals.misc += (parseFloat(t.misc_expense) || 0) + (parseFloat(t.misc_expense_2) || 0);
+      totals.amount += (t.amount || 0);
+      totals.misc += (t.misc || 0);
+      totals.total += (t.total || 0);
     });
-    totals.balance = totals.total - totals.misc;
     return totals;
   }, [filteredTransactions]);
 
@@ -778,16 +822,16 @@ const Transactions = () => {
         <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <span className="text-xs text-gray-500 uppercase block">Total Amount</span>
-              <span className="text-xl font-bold text-emerald-700">{summaryTotals.total.toLocaleString()}</span>
+              <span className="text-xs text-gray-500 uppercase block">Amount (Operations)</span>
+              <span className="text-xl font-bold text-blue-700">{summaryTotals.amount.toLocaleString()}</span>
             </div>
             <div>
               <span className="text-xs text-gray-500 uppercase block">Operational Misc</span>
               <span className="text-xl font-bold text-amber-600">{summaryTotals.misc.toLocaleString()}</span>
             </div>
             <div>
-              <span className="text-xs text-gray-500 uppercase block">Balance (Total − Misc)</span>
-              <span className="text-xl font-bold text-blue-700">{summaryTotals.balance.toLocaleString()}</span>
+              <span className="text-xs text-gray-500 uppercase block">Total (Amount + Misc)</span>
+              <span className="text-xl font-bold text-emerald-700">{summaryTotals.total.toLocaleString()}</span>
             </div>
           </div>
           <p className="text-xs text-gray-400 text-center mt-2">
@@ -811,6 +855,8 @@ const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEd
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Misc</th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
         </tr>
       </thead>
@@ -825,7 +871,9 @@ const AllTransactionsTable = ({ transactions, editingId, onStartEdit, onCancelEd
                   <span className="inline-block px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{t.modelType}</span>
                 </td>
                 <td className="px-4 py-3 text-sm">{t.description}</td>
-                <td className="px-4 py-3 text-sm font-medium text-emerald-700">{t.amount?.toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm font-medium text-blue-700">{t.amount?.toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm font-medium text-amber-700">{(t.misc || 0).toLocaleString()}</td>
+                <td className="px-4 py-3 text-sm font-medium text-emerald-700">{(t.total || t.amount)?.toLocaleString()}</td>
                 <td className="px-4 py-3 text-sm">-</td>
               </tr>
             );
@@ -913,7 +961,9 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
           <span className="inline-block px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{transaction.modelType}</span>
         </td>
         <td className="px-4 py-3 text-sm">{transaction.description}</td>
-        <td className="px-4 py-3 text-sm font-medium text-emerald-700">{transaction.amount?.toLocaleString()}</td>
+        <td className="px-4 py-3 text-sm font-medium text-blue-700">{transaction.amount?.toLocaleString()}</td>
+        <td className="px-4 py-3 text-sm font-medium text-amber-700">{(transaction.misc || 0).toLocaleString()}</td>
+        <td className="px-4 py-3 text-sm font-medium text-emerald-700">{(transaction.total || transaction.amount)?.toLocaleString()}</td>
         <td className="px-4 py-3 text-sm flex gap-2">
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
@@ -940,7 +990,7 @@ const AllTransactionRow = ({ transaction, config, isEditing, onStartEdit, onCanc
       </tr>
       {expanded && (
         <tr className={isEditing ? 'bg-yellow-50' : 'bg-gray-50'}>
-          <td colSpan={5} className="px-4 py-4">
+          <td colSpan={7} className="px-4 py-4">
             {isEditing ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

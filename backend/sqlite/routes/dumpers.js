@@ -102,11 +102,19 @@ router.post('/operations', (req, res, next) => {
             });
         }
         
-        // Validation - dumper_name is required
-        if (!req.body.dumper_name) {
+        // Validation - equipment_id is required
+        if (!req.body.equipment_id) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'dumper_name is required. Select a dumper.' 
+                error: 'equipment_id is required. Select a dumper.' 
+            });
+        }
+        
+        // Validation - equipment_id must be numeric
+        if (isNaN(parseInt(req.body.equipment_id, 10))) {
+            return res.status(400).json({
+                success: false,
+                error: 'equipment_id must be a valid number'
             });
         }
         
@@ -207,11 +215,19 @@ router.post('/misc', (req, res, next) => {
             });
         }
         
-        // Validation - dumper_name is required
-        if (!req.body.dumper_name) {
+        // Validation - equipment_id is required
+        if (!req.body.equipment_id) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'dumper_name is required. Select a dumper.' 
+                error: 'equipment_id is required. Select a dumper.' 
+            });
+        }
+        
+        // Validation - equipment_id must be numeric
+        if (isNaN(parseInt(req.body.equipment_id, 10))) {
+            return res.status(400).json({
+                success: false,
+                error: 'equipment_id must be a valid number'
             });
         }
         
